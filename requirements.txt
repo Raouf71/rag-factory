@@ -1,0 +1,7 @@
+llama-index==0.14.12
+llama-index-core==0.14.12
+llama-index-embeddings-openai 
+llama-index-postprocessor-flag-embedding-reranker 
+git clone git+https://github.com/FlagOpen/FlagEmbedding.git 
+llama-index-graph-stores-neo4j 
+llama-cloud-services==0.6.90
