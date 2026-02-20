@@ -1,4 +1,7 @@
+.vscode
+llamaindex-venv
 todo.md
+fast-cmd.md
 my-keyz.md
 rag4production.md
 extract_models_specs.png

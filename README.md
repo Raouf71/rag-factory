@@ -1,24 +1,21 @@
 # RAG-factory
 > End-to-end exploration of Retrieval-Augmented Generation pipelines across two real-world domains, comparing frameworks, patterns, and evaluation strategies.
 
+
+## Currently working on:
+- **RAG-4-catalogs**: check out this [branch](https://github.com/Raouf71/rag-factory/tree/master/mechanical-parts-catalogs) for new updates.
+
+## Coming soon:
+- WIKI page hosting the project documentation
+- RAG-Chatbot with UI
+
+
 ---
 
 ## Domains
 
 - **Mechanical Parts Catalogs** — structured, technical, terminology-heavy documents
 - **Medical Bills** — semi-structured, entity-rich, compliance-sensitive documents
-
----
-
-## RAG Pipeline Stages
-
-Each domain goes through the full ingestion-to-answer pipeline:
-
-- **Document Ingestion** — PDF/HTML/CSV parsing and cleaning
-- **Chunking** — fixed-size, sentence-aware, and semantic chunking strategies
-- **Embedding** — dense vector representations (e.g. `text-embedding-3-small`, `bge-m3`)
-- **Indexing** — vector stores (FAISS, Qdrant, Weaviate) + graph stores for KG-RAG
-- **Retrieval** — top-k similarity search, hybrid search, graph traversal, agent-driven retrieval
 
 ---
 
