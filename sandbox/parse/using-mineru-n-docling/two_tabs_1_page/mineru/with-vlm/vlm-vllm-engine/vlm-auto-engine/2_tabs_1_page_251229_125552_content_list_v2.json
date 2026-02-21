@@ -1,0 +1,212 @@
+[
+    [
+        {
+            "type": "image",
+            "content": {
+                "image_source": {
+                    "path": "images/18b8f1922fa46a7f591ef8d321f3ba18eb06ba59d91167e3a5377e772ce5d559.jpg"
+                },
+                "image_caption": [],
+                "image_footnote": []
+            },
+            "bbox": [
+                0,
+                124,
+                72,
+                168
+            ]
+        },
+        {
+            "type": "title",
+            "content": {
+                "title_content": [
+                    {
+                        "type": "text",
+                        "content": "Kegelräder aus Polyacetal (POM) "
+                    }
+                ],
+                "level": 1
+            },
+            "bbox": [
+                92,
+                122,
+                571,
+                149
+            ]
+        },
+        {
+            "type": "title",
+            "content": {
+                "title_content": [
+                    {
+                        "type": "text",
+                        "content": "Übersetzung 1:2 "
+                    }
+                ],
+                "level": 2
+            },
+            "bbox": [
+                92,
+                167,
+                263,
+                189
+            ]
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "Ausführung: geradverzahnt, gespritzt, Eingriffswinkel  "
+                    },
+                    {
+                        "type": "equation_inline",
+                        "content": "20^{\\circ}"
+                    },
+                    {
+                        "type": "text",
+                        "content": ", Bohrung spanabhebend beareritet. "
+                    }
+                ]
+            },
+            "bbox": [
+                90,
+                206,
+                571,
+                237
+            ]
+        },
+        {
+            "type": "paragraph",
+            "content": {
+                "paragraph_content": [
+                    {
+                        "type": "text",
+                        "content": "Maßänderung vorbehalten. "
+                    }
+                ]
+            },
+            "bbox": [
+                92,
+                240,
+                285,
+                255
+            ]
+        },
+        {
+            "type": "image",
+            "content": {
+                "image_source": {
+                    "path": "images/3f308db84d76591d01a06280d3ac14c6a2c160de438db43880fda87c45886891.jpg"
+                },
+                "image_caption": [
+                    {
+                        "type": "text",
+                        "content": "Abbildung beispieftaft "
+                    }
+                ],
+                "image_footnote": []
+            },
+            "bbox": [
+                643,
+                124,
+                905,
+                305
+            ]
+        },
+        {
+            "type": "image",
+            "content": {
+                "image_source": {
+                    "path": "images/d6bc39ff3062468fe938c964016df1f8b2910384fdabbf942ff552819999a7a7.jpg"
+                },
+                "image_caption": [],
+                "image_footnote": []
+            },
+            "bbox": [
+                95,
+                305,
+                631,
+                551
+            ]
+        },
+        {
+            "type": "table",
+            "content": {
+                "image_source": {
+                    "path": "images/868df611a03cb905ef24c6711ba50aef0182bc825989f6e1f28d71632974501a.jpg"
+                },
+                "table_caption": [],
+                "table_footnote": [],
+                "html": "<table><tr><td>M</td><td>Z</td><td>\\( ØB_1 \\) [mm]</td><td>\\( ØN_1 \\) [mm]</td><td>\\( ØTK_1 \\) [mm]</td><td>\\( ØKK_1 \\) [mm]</td><td>E, [mm]</td><td>\\( NL_1 \\) [mm]</td><td>ZB [mm]</td><td>Q, [mm]</td><td>L, [mm]</td><td>G [g]</td><td>DM** [Ncm]</td><td>Art.-Nr.</td></tr><tr><td>1,0</td><td>15</td><td>5</td><td>12,2</td><td>15</td><td>16,6</td><td>26,3</td><td>10,5</td><td>6,4</td><td>17,1</td><td>17,1</td><td>2,4</td><td>12,06</td><td>KH1015-1:2HF</td></tr><tr><td>1,5</td><td>15</td><td>8</td><td>17</td><td>22,5</td><td>25</td><td>35,8</td><td>11,7</td><td>10,5</td><td>22,8</td><td>22,8</td><td>7,5</td><td>44,54</td><td>KH1515-1:2HF</td></tr><tr><td>2,0</td><td>15</td><td>10</td><td>22,6</td><td>30</td><td>33,3</td><td>44</td><td>12</td><td>14,5</td><td>26</td><td>27</td><td>13,3</td><td>109,33</td><td>KH2015-1:2HF</td></tr><tr><td>2,5</td><td>15</td><td>12</td><td>26,5</td><td>37,5</td><td>42</td><td>53,3</td><td>12,7</td><td>17,1</td><td>29,5</td><td>31,1</td><td>23,6</td><td>201,46</td><td>KH2515-1:2HF</td></tr><tr><td>3,0</td><td>15</td><td>14</td><td>31,2</td><td>45</td><td>50</td><td>63,3</td><td>15,3</td><td>20,2</td><td>34,8</td><td>36,4</td><td>38</td><td>342,69</td><td>KH3015-1:2HF</td></tr></table>",
+                "table_type": "simple_table",
+                "table_nest_level": 1
+            },
+            "bbox": [
+                92,
+                570,
+                628,
+                665
+            ]
+        },
+        {
+            "type": "table",
+            "content": {
+                "image_source": {
+                    "path": "images/e9edc1d778a37bb78870d5c9f43348cffec5e85738dec8fca3677717597e01b4.jpg"
+                },
+                "table_caption": [],
+                "table_footnote": [
+                    {
+                        "type": "text",
+                        "content": "**)itte Angaben zu Drehmoment auf S. 14 beachten. "
+                    }
+                ],
+                "html": "<table><tr><td>M</td><td>Z</td><td>\\( \\varnothing {B}_{2} \\) [mm]</td><td>\\( \\varnothing {N}_{2} \\) [mm]</td><td>\\( \\varnothing {TK}_{2} \\) [mm]</td><td>\\( \\varnothing {KK}_{2} \\) [mm]</td><td>\\( {\\mathrm{E}}_{2} \\) [mm]</td><td>\\( {\\mathrm{{NL}}}_{2} \\) [mm]</td><td>ZB [mm]</td><td>\\( {\\mathrm{Q}}_{2} \\) [mm]</td><td>\\( {\\mathrm{L}}_{2} \\) [mm]</td><td>G [g]</td><td>DM** [Ncm]</td><td>Art.-Nr.</td></tr><tr><td>1,0</td><td>30</td><td>8</td><td>18</td><td>30</td><td>31</td><td>20,8</td><td>9</td><td>6,9</td><td>14,7</td><td>16</td><td>7</td><td>26,02</td><td>KH1030-1:2HF</td></tr><tr><td>1,5</td><td>30</td><td>10</td><td>23,4</td><td>45</td><td>46,3</td><td>25,9</td><td>9,6</td><td>10,7</td><td>17,5</td><td>19,6</td><td>18</td><td>90,76</td><td>KH1530-1:2HF</td></tr><tr><td>2,0</td><td>30</td><td>12</td><td>30,2</td><td>60</td><td>62</td><td>32,9</td><td>12</td><td>14,2</td><td>22,4</td><td>24,5</td><td>42</td><td>214,13</td><td>KH2030-1:2HF</td></tr><tr><td>2,5</td><td>30</td><td>16</td><td>35,8</td><td>75</td><td>77,2</td><td>40,8</td><td>15,2</td><td>17,4</td><td>27,6</td><td>29,6</td><td>77</td><td>409,98</td><td>KH2530-1:2HF</td></tr><tr><td>3,0</td><td>30</td><td>18</td><td>45</td><td>90</td><td>92,5</td><td>49,9</td><td>19</td><td>20,3</td><td>33,8</td><td>37,5</td><td>136</td><td>695,55</td><td>KH3030-1:2HF</td></tr></table>",
+                "table_type": "simple_table",
+                "table_nest_level": 1
+            },
+            "bbox": [
+                92,
+                675,
+                628,
+                772
+            ]
+        },
+        {
+            "type": "page_number",
+            "content": {
+                "page_number_content": [
+                    {
+                        "type": "text",
+                        "content": "20 "
+                    }
+                ]
+            },
+            "bbox": [
+                42,
+                931,
+                62,
+                942
+            ]
+        },
+        {
+            "type": "page_footer",
+            "content": {
+                "page_footer_content": [
+                    {
+                        "type": "text",
+                        "content": "Gerne bearben wir die Standardteile auf Ihren Wunsch hund durch Einbringung von veränderten Bohrungsurchmessern, zusätzlichen Bohrungen, Gewinden, Nuten etc. AuBerm dem fertigen wir auch spezifisch nach Ihren Zeichnungen. ihre Anfrage senden Sie an mailbox@zipperle-antriebstechnik.de "
+                    }
+                ]
+            },
+            "bbox": [
+                99,
+                921,
+                885,
+                946
+            ]
+        }
+    ]
+]

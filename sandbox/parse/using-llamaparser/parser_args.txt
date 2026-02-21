@@ -1,0 +1,89 @@
+is_remote=False api_key='llx-...' 
+base_url='https://api.cloud.llamaindex.ai' 
+organization_id=None 
+project_id=None 
+check_interval=1 
+backoff_pattern=<BackoffPattern.LINEAR: 'linear'> 
+max_check_interval=5 custom_client=None ignore_errors=True 
+max_timeout=2000 
+num_workers=4 
+result_type=<ResultType.TXT: 'text'> 
+show_progress=True 
+split_by_page=True 
+verbose=True 
+adaptive_long_table=True 
+annotate_links=False 
+auto_mode=False 
+auto_mode_configuration_json=None 
+auto_mode_trigger_on_image_in_page=False 
+auto_mode_trigger_on_table_in_page=False
+ auto_mode_trigger_on_text_in_page=None 
+ auto_mode_trigger_on_regexp_in_page=None 
+ azure_openai_api_version=None azure_openai_deployment_name=None 
+ azure_openai_endpoint=None 
+ azure_openai_key=None 
+ bbox_bottom=None 
+ bbox_left=None 
+ bbox_right=None 
+ bbox_top=None 
+ compact_markdown_table=False 
+ continuous_mode=False 
+ disable_ocr=False 
+ disable_image_extraction=False 
+ do_not_cache=False 
+ do_not_unroll_columns=False 
+ extract_charts=False 
+ extract_layout=False 
+ fast_mode=False 
+ guess_xlsx_sheet_names=False 
+ high_res_ocr=True 
+ html_make_all_elements_visible=False 
+ html_remove_fixed_elements=False 
+ html_remove_navigation_elements=False
+ http_proxy=None 
+ ignore_document_elements_for_layout_detection=False 
+ input_s3_region=None 
+ invalidate_cache=False 
+ job_timeout_extra_time_per_page_in_seconds=None 
+ job_timeout_in_seconds=None 
+ language='de' 
+ markdown_table_multiline_header_separator=None 
+ max_pages=0 merge_tables_across_pages_in_markdown=False 
+ output_pdf_of_document=False 
+ output_s3_path_prefix=None 
+ output_s3_region=None 
+ output_tables_as_HTML=True 
+ outlined_table_extraction=True 
+ page_error_tolerance=None 
+ page_prefix=None 
+ page_separator=None 
+ page_suffix=None 
+ parse_mode=None 
+ premium_mode=False 
+ preset=None 
+ preserve_layout_alignment_across_pages=False 
+ preserve_very_small_text=False 
+ replace_failed_page_mode=None 
+ replace_failed_page_with_error_message_prefix=None 
+ replace_failed_page_with_error_message_suffix=None 
+ skip_diagonal_text=False spreadsheet_extract_sub_tables=False 
+ strict_mode_buggy_font=False 
+ strict_mode_image_extraction=False 
+ strict_mode_image_ocr=False 
+ strict_mode_reconstruction=False 
+ structured_output=False 
+ structured_output_json_schema=None 
+ structured_output_json_schema_name=None 
+ system_prompt=None 
+ system_prompt_append=None 
+ take_screenshot=False target_pages=None user_prompt=None 
+ vendor_multimodal_api_key=None 
+ vendor_multimodal_model_name=None model=None 
+ webhook_url=None partition_pages=None 
+ hide_headers=False hide_footers=False page_header_suffix=None 
+ page_header_prefix=None page_footer_suffix=None 
+ page_footer_prefix=None 
+ bounding_box=None complemental_formatting_instruction=None 
+ content_guideline_instruction=None formatting_instruction=None 
+ gpt4o_mode=False gpt4o_api_key=None is_formatting_instruction=False 
+ parsing_instruction='' use_vendor_multimodal_model=False

@@ -1,0 +1,2 @@
+took 1329.09 seconds for 1 page
+false values like G[g]="7,69" instead of "7,49" at ZZ=26

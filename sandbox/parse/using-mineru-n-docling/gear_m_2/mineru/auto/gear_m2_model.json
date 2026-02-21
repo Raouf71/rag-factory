@@ -1,0 +1,554 @@
+[
+    {
+        "layout_dets": [
+            {
+                "category_id": 5,
+                "poly": [
+                    154,
+                    622,
+                    1041,
+                    622,
+                    1041,
+                    1860,
+                    154,
+                    1860
+                ],
+                "score": 0.973,
+                "html": "<table><tr><td rowspan=1 colspan=1>ZZ</td><td rowspan=1 colspan=1>ZB[mm]</td><td rowspan=1 colspan=1>B[mm]</td><td rowspan=1 colspan=1>OTK[mm]</td><td rowspan=1 colspan=1>OKK[mm]</td><td rowspan=1 colspan=1>ON[mm]</td><td rowspan=1 colspan=1>L[mm]</td><td rowspan=1 colspan=1>OFM[mm]</td><td rowspan=1 colspan=1>WS[mm]</td><td rowspan=1 colspan=1>G[g]</td><td rowspan=1 colspan=1>DM**[Ncm]</td><td rowspan=1 colspan=1>Art.-Nr.</td></tr><tr><td rowspan=1 colspan=1>12</td><td rowspan=1 colspan=1>15</td><td rowspan=1 colspan=1>8</td><td rowspan=1 colspan=1>24</td><td rowspan=1 colspan=1>28</td><td rowspan=1 colspan=1>18,5</td><td rowspan=1 colspan=1>27</td><td rowspan=1 colspan=1>16*</td><td rowspan=1 colspan=1>13,5</td><td rowspan=1 colspan=1>11,74</td><td rowspan=1 colspan=1>113,1</td><td rowspan=1 colspan=1>SH2012HF</td></tr><tr><td rowspan=1 colspan=1>13</td><td rowspan=1 colspan=1>15</td><td rowspan=1 colspan=1>8</td><td rowspan=1 colspan=1>26</td><td rowspan=1 colspan=1>30</td><td rowspan=1 colspan=1>18,5</td><td rowspan=1 colspan=1>27</td><td rowspan=1 colspan=1>18.5*</td><td rowspan=1 colspan=1>13,5</td><td rowspan=1 colspan=1>12,88</td><td rowspan=1 colspan=1>122,52</td><td rowspan=1 colspan=1>SH2013HF</td></tr><tr><td rowspan=1 colspan=1>14</td><td rowspan=1 colspan=1>15</td><td rowspan=1 colspan=1>8</td><td rowspan=1 colspan=1>28</td><td rowspan=1 colspan=1>32</td><td rowspan=1 colspan=1>18,5</td><td rowspan=1 colspan=1>27</td><td rowspan=1 colspan=1>18,5</td><td rowspan=1 colspan=1>13,5</td><td rowspan=1 colspan=1>14,98</td><td rowspan=1 colspan=1>131,95</td><td rowspan=1 colspan=1>SH2014HF</td></tr><tr><td rowspan=1 colspan=1>15</td><td rowspan=1 colspan=1>15</td><td rowspan=1 colspan=1>8</td><td rowspan=1 colspan=1>30</td><td rowspan=1 colspan=1>34</td><td rowspan=1 colspan=1>18,5</td><td rowspan=1 colspan=1>27</td><td rowspan=1 colspan=1>22*</td><td rowspan=1 colspan=1>12</td><td rowspan=1 colspan=1>15,89</td><td rowspan=1 colspan=1>141,37</td><td rowspan=1 colspan=1>SH2015HF</td></tr><tr><td rowspan=1 colspan=1>16</td><td rowspan=1 colspan=1>15</td><td rowspan=1 colspan=1>8</td><td rowspan=1 colspan=1>32</td><td rowspan=1 colspan=1>36</td><td rowspan=1 colspan=1>17.5</td><td rowspan=1 colspan=1>27</td><td rowspan=1 colspan=1>22</td><td rowspan=1 colspan=1>6</td><td rowspan=1 colspan=1>16,68</td><td rowspan=1 colspan=1>150,8</td><td rowspan=1 colspan=1>SH2016HF</td></tr><tr><td rowspan=1 colspan=1>17</td><td rowspan=1 colspan=1>15</td><td rowspan=1 colspan=1>8</td><td rowspan=1 colspan=1>34</td><td rowspan=1 colspan=1>38</td><td rowspan=1 colspan=1>17.5</td><td rowspan=1 colspan=1>27</td><td rowspan=1 colspan=1>24</td><td rowspan=1 colspan=1>6</td><td rowspan=1 colspan=1>17,65</td><td rowspan=1 colspan=1>160,22</td><td rowspan=1 colspan=1>SH2017HF</td></tr><tr><td rowspan=1 colspan=1>18</td><td rowspan=1 colspan=1>15</td><td rowspan=1 colspan=1>8</td><td rowspan=1 colspan=1>36</td><td rowspan=1 colspan=1>40</td><td rowspan=1 colspan=1>17.5</td><td rowspan=1 colspan=1>27</td><td rowspan=1 colspan=1>25</td><td rowspan=1 colspan=1>6</td><td rowspan=1 colspan=1>19,44</td><td rowspan=1 colspan=1>169,65</td><td rowspan=1 colspan=1>SH2018HF</td></tr><tr><td rowspan=1 colspan=1>19</td><td rowspan=1 colspan=1>15</td><td rowspan=1 colspan=1>8</td><td rowspan=1 colspan=1>38</td><td rowspan=1 colspan=1>42</td><td rowspan=1 colspan=1>17.5</td><td rowspan=1 colspan=1>27</td><td rowspan=1 colspan=1>27</td><td rowspan=1 colspan=1>6</td><td rowspan=1 colspan=1>20,84</td><td rowspan=1 colspan=1>179,07</td><td rowspan=1 colspan=1>SH2019HF</td></tr><tr><td rowspan=1 colspan=1>20</td><td rowspan=1 colspan=1>15</td><td rowspan=1 colspan=1>10</td><td rowspan=1 colspan=1>40</td><td rowspan=1 colspan=1>44</td><td rowspan=1 colspan=1>20</td><td rowspan=1 colspan=1>27</td><td rowspan=1 colspan=1>28</td><td rowspan=1 colspan=1>6</td><td rowspan=1 colspan=1>2459</td><td rowspan=1 colspan=1>188,5</td><td rowspan=1 colspan=1>SH2020HF</td></tr><tr><td rowspan=1 colspan=1>21</td><td rowspan=1 colspan=1>15</td><td rowspan=1 colspan=1>10</td><td rowspan=1 colspan=1>42</td><td rowspan=1 colspan=1>46</td><td rowspan=1 colspan=1>20</td><td rowspan=1 colspan=1>27</td><td rowspan=1 colspan=1>28</td><td rowspan=1 colspan=1>6</td><td rowspan=1 colspan=1>27,01</td><td rowspan=1 colspan=1>197,92</td><td rowspan=1 colspan=1>SH2021HF</td></tr><tr><td rowspan=1 colspan=1>22</td><td rowspan=1 colspan=1>15</td><td rowspan=1 colspan=1>10</td><td rowspan=1 colspan=1>44</td><td rowspan=1 colspan=1>48</td><td rowspan=1 colspan=1>20</td><td rowspan=1 colspan=1>27</td><td rowspan=1 colspan=1>28</td><td rowspan=1 colspan=1>6</td><td rowspan=1 colspan=1>30,28</td><td rowspan=1 colspan=1>207,35</td><td rowspan=1 colspan=1>SH2022HF</td></tr><tr><td rowspan=1 colspan=1>23</td><td rowspan=1 colspan=1>15</td><td rowspan=1 colspan=1>10</td><td rowspan=1 colspan=1>46</td><td rowspan=1 colspan=1>50</td><td rowspan=1 colspan=1>24</td><td rowspan=1 colspan=1>27</td><td rowspan=1 colspan=1>35</td><td rowspan=1 colspan=1>6</td><td rowspan=1 colspan=1>32,58</td><td rowspan=1 colspan=1>216,77</td><td rowspan=1 colspan=1>SH2023HF</td></tr><tr><td rowspan=1 colspan=1>24</td><td rowspan=1 colspan=1>15</td><td rowspan=1 colspan=1>10</td><td rowspan=1 colspan=1>48</td><td rowspan=1 colspan=1>52</td><td rowspan=1 colspan=1>24</td><td rowspan=1 colspan=1>27</td><td rowspan=1 colspan=1>35</td><td rowspan=1 colspan=1>6</td><td rowspan=1 colspan=1>35,4</td><td rowspan=1 colspan=1>226,19</td><td rowspan=1 colspan=1>SH2024HF</td></tr><tr><td rowspan=1 colspan=1>25</td><td rowspan=1 colspan=1>15</td><td rowspan=1 colspan=1>10</td><td rowspan=1 colspan=1>50</td><td rowspan=1 colspan=1>54</td><td rowspan=1 colspan=1>24</td><td rowspan=1 colspan=1>27</td><td rowspan=1 colspan=1>35</td><td rowspan=1 colspan=1>6</td><td rowspan=1 colspan=1>39,24</td><td rowspan=1 colspan=1>235,62</td><td rowspan=1 colspan=1>SH2025HF</td></tr><tr><td rowspan=1 colspan=1>26</td><td rowspan=1 colspan=1>15</td><td rowspan=1 colspan=1>10</td><td rowspan=1 colspan=1>52</td><td rowspan=1 colspan=1>56</td><td rowspan=1 colspan=1>24</td><td rowspan=1 colspan=1>27</td><td rowspan=1 colspan=1>38,5</td><td rowspan=1 colspan=1>6</td><td rowspan=1 colspan=1>39,28</td><td rowspan=1 colspan=1>245,04</td><td rowspan=1 colspan=1>SH2026HF</td></tr><tr><td rowspan=1 colspan=1>27</td><td rowspan=1 colspan=1>15</td><td rowspan=1 colspan=1>10</td><td rowspan=1 colspan=1>54</td><td rowspan=1 colspan=1>58</td><td rowspan=1 colspan=1>24</td><td rowspan=1 colspan=1>27</td><td rowspan=1 colspan=1>38,5</td><td rowspan=1 colspan=1>6</td><td rowspan=1 colspan=1>42,71</td><td rowspan=1 colspan=1>2547</td><td rowspan=1 colspan=1>SH2027HF</td></tr><tr><td rowspan=1 colspan=1>28</td><td rowspan=1 colspan=1>15</td><td rowspan=1 colspan=1>10</td><td rowspan=1 colspan=1>56</td><td rowspan=1 colspan=1>60</td><td rowspan=1 colspan=1>24</td><td rowspan=1 colspan=1>27</td><td rowspan=1 colspan=1>38,5</td><td rowspan=1 colspan=1>6</td><td rowspan=1 colspan=1>46,47</td><td rowspan=1 colspan=1>263,89</td><td rowspan=1 colspan=1>SH2028HF</td></tr><tr><td rowspan=1 colspan=1>30</td><td rowspan=1 colspan=1>15</td><td rowspan=1 colspan=1>10</td><td rowspan=1 colspan=1>60</td><td rowspan=1 colspan=1>64</td><td rowspan=1 colspan=1>24</td><td rowspan=1 colspan=1>27</td><td rowspan=1 colspan=1>43,5</td><td rowspan=1 colspan=1>6</td><td rowspan=1 colspan=1>50,06</td><td rowspan=1 colspan=1>282,74</td><td rowspan=1 colspan=1>SH2030HF</td></tr><tr><td rowspan=1 colspan=1>32</td><td rowspan=1 colspan=1>15</td><td rowspan=1 colspan=1>10</td><td rowspan=1 colspan=1>64</td><td rowspan=1 colspan=1>68</td><td rowspan=1 colspan=1>26</td><td rowspan=1 colspan=1>27</td><td rowspan=1 colspan=1>44</td><td rowspan=1 colspan=1>6</td><td rowspan=1 colspan=1>59,73</td><td rowspan=1 colspan=1>301,59</td><td rowspan=1 colspan=1>SH2032HF</td></tr><tr><td rowspan=1 colspan=1>35</td><td rowspan=1 colspan=1>15</td><td rowspan=1 colspan=1>12</td><td rowspan=1 colspan=1>70</td><td rowspan=1 colspan=1>74</td><td rowspan=1 colspan=1>26</td><td rowspan=1 colspan=1>27</td><td rowspan=1 colspan=1>54</td><td rowspan=1 colspan=1>6</td><td rowspan=1 colspan=1>61,66</td><td rowspan=1 colspan=1>329,87</td><td rowspan=1 colspan=1>SH2035HF</td></tr><tr><td rowspan=1 colspan=1>36</td><td rowspan=1 colspan=1>15</td><td rowspan=1 colspan=1>12</td><td rowspan=1 colspan=1>72</td><td rowspan=1 colspan=1>76</td><td rowspan=1 colspan=1>26</td><td rowspan=1 colspan=1>27</td><td rowspan=1 colspan=1>54</td><td rowspan=1 colspan=1>6</td><td rowspan=1 colspan=1>65,47</td><td rowspan=1 colspan=1>339,29</td><td rowspan=1 colspan=1>SH2036HF</td></tr><tr><td rowspan=1 colspan=1>38</td><td rowspan=1 colspan=1>15</td><td rowspan=1 colspan=1>12</td><td rowspan=1 colspan=1>76</td><td rowspan=1 colspan=1>80</td><td rowspan=1 colspan=1>26</td><td rowspan=1 colspan=1>27</td><td rowspan=1 colspan=1>61,5</td><td rowspan=1 colspan=1>6</td><td rowspan=1 colspan=1>66,51</td><td rowspan=1 colspan=1>358,14</td><td rowspan=1 colspan=1>SH2038HF</td></tr><tr><td rowspan=1 colspan=1>40</td><td rowspan=1 colspan=1>15</td><td rowspan=1 colspan=1>12</td><td rowspan=1 colspan=1>80</td><td rowspan=1 colspan=1>84</td><td rowspan=1 colspan=1>26</td><td rowspan=1 colspan=1>27</td><td rowspan=1 colspan=1>61,5</td><td rowspan=1 colspan=1>6</td><td rowspan=1 colspan=1>77.4</td><td rowspan=1 colspan=1>376,99</td><td rowspan=1 colspan=1>SH2040HF</td></tr><tr><td rowspan=1 colspan=1>42</td><td rowspan=1 colspan=1>15</td><td rowspan=1 colspan=1>12</td><td rowspan=1 colspan=1>84</td><td rowspan=1 colspan=1>88</td><td rowspan=1 colspan=1>26</td><td rowspan=1 colspan=1>27</td><td rowspan=1 colspan=1>61,5</td><td rowspan=1 colspan=1>6</td><td rowspan=1 colspan=1>87</td><td rowspan=1 colspan=1>395,84</td><td rowspan=1 colspan=1>SH2042HF</td></tr><tr><td rowspan=1 colspan=1>45</td><td rowspan=1 colspan=1>15</td><td rowspan=1 colspan=1>14</td><td rowspan=1 colspan=1>90</td><td rowspan=1 colspan=1>94</td><td rowspan=1 colspan=1>30</td><td rowspan=1 colspan=1>27</td><td rowspan=1 colspan=1>68</td><td rowspan=1 colspan=1>6</td><td rowspan=1 colspan=1>99,09</td><td rowspan=1 colspan=1>424,12</td><td rowspan=1 colspan=1>SH2045HF</td></tr><tr><td rowspan=1 colspan=1>48</td><td rowspan=1 colspan=1>15</td><td rowspan=1 colspan=1>14</td><td rowspan=1 colspan=1>96</td><td rowspan=1 colspan=1>100</td><td rowspan=1 colspan=1>30</td><td rowspan=1 colspan=1>27</td><td rowspan=1 colspan=1>74</td><td rowspan=1 colspan=1>6</td><td rowspan=1 colspan=1>108,91</td><td rowspan=1 colspan=1>452,39</td><td rowspan=1 colspan=1>SH2048HF</td></tr><tr><td rowspan=1 colspan=1>50</td><td rowspan=1 colspan=1>15</td><td rowspan=1 colspan=1>14</td><td rowspan=1 colspan=1>100</td><td rowspan=1 colspan=1>104</td><td rowspan=1 colspan=1>30</td><td rowspan=1 colspan=1>27</td><td rowspan=1 colspan=1>78</td><td rowspan=1 colspan=1>6</td><td rowspan=1 colspan=1>116,29</td><td rowspan=1 colspan=1>471,24</td><td rowspan=1 colspan=1>SH2050HF</td></tr><tr><td rowspan=1 colspan=1>55</td><td rowspan=1 colspan=1>15</td><td rowspan=1 colspan=1>14</td><td rowspan=1 colspan=1>110</td><td rowspan=1 colspan=1>114</td><td rowspan=1 colspan=1>30</td><td rowspan=1 colspan=1>27</td><td rowspan=1 colspan=1>87,5</td><td rowspan=1 colspan=1>6</td><td rowspan=1 colspan=1>133,84</td><td rowspan=1 colspan=1>518,36</td><td rowspan=1 colspan=1>SH2055HF</td></tr><tr><td rowspan=1 colspan=1>60</td><td rowspan=1 colspan=1>15</td><td rowspan=1 colspan=1>14</td><td rowspan=1 colspan=1>120</td><td rowspan=1 colspan=1>124</td><td rowspan=1 colspan=1>30</td><td rowspan=1 colspan=1>27</td><td rowspan=1 colspan=1>97.5</td><td rowspan=1 colspan=1>6</td><td rowspan=1 colspan=1>154,62</td><td rowspan=1 colspan=1>565,49</td><td rowspan=1 colspan=1>SH2060HF</td></tr><tr><td rowspan=1 colspan=1>70</td><td rowspan=1 colspan=1>15</td><td rowspan=1 colspan=1>14</td><td rowspan=1 colspan=1>140</td><td rowspan=1 colspan=1>144</td><td rowspan=1 colspan=1>30</td><td rowspan=1 colspan=1>27</td><td rowspan=1 colspan=1>117</td><td rowspan=1 colspan=1>6</td><td rowspan=1 colspan=1>196,02</td><td rowspan=1 colspan=1>659,73</td><td rowspan=1 colspan=1>SH2070HF</td></tr><tr><td rowspan=1 colspan=1>75</td><td rowspan=1 colspan=1>19</td><td rowspan=1 colspan=1>20</td><td rowspan=1 colspan=1>150</td><td rowspan=1 colspan=1>154</td><td rowspan=1 colspan=1>40</td><td rowspan=1 colspan=1>34</td><td rowspan=1 colspan=1>133</td><td rowspan=1 colspan=1>8</td><td rowspan=1 colspan=1>285,2</td><td rowspan=1 colspan=1>895,35</td><td rowspan=1 colspan=1>SH2075HF</td></tr><tr><td rowspan=1 colspan=1>80</td><td rowspan=1 colspan=1>19</td><td rowspan=1 colspan=1>20</td><td rowspan=1 colspan=1>160</td><td rowspan=1 colspan=1>164</td><td rowspan=1 colspan=1>40</td><td rowspan=1 colspan=1>34</td><td rowspan=1 colspan=1>133</td><td rowspan=1 colspan=1>8</td><td rowspan=1 colspan=1>344,1</td><td rowspan=1 colspan=1>955,04</td><td rowspan=1 colspan=1>SH2080HF</td></tr><tr><td rowspan=1 colspan=1>85</td><td rowspan=1 colspan=1>19</td><td rowspan=1 colspan=1>20</td><td rowspan=1 colspan=1>170</td><td rowspan=1 colspan=1>174</td><td rowspan=1 colspan=1>40</td><td rowspan=1 colspan=1>34</td><td rowspan=1 colspan=1>148</td><td rowspan=1 colspan=1>8</td><td rowspan=1 colspan=1>370,2</td><td rowspan=1 colspan=1>1014,73</td><td rowspan=1 colspan=1>SH2085HF</td></tr><tr><td rowspan=1 colspan=1>90</td><td rowspan=1 colspan=1>19</td><td rowspan=1 colspan=1>20</td><td rowspan=1 colspan=1>180</td><td rowspan=1 colspan=1>184</td><td rowspan=1 colspan=1>40</td><td rowspan=1 colspan=1>34</td><td rowspan=1 colspan=1>163</td><td rowspan=1 colspan=1>8</td><td rowspan=1 colspan=1>388,5</td><td rowspan=1 colspan=1>1074,42</td><td rowspan=1 colspan=1>SH2090HF</td></tr><tr><td rowspan=1 colspan=1>95</td><td rowspan=1 colspan=1>19</td><td rowspan=1 colspan=1>20</td><td rowspan=1 colspan=1>190</td><td rowspan=1 colspan=1>194</td><td rowspan=1 colspan=1>40</td><td rowspan=1 colspan=1>34</td><td rowspan=1 colspan=1>163</td><td rowspan=1 colspan=1>8</td><td rowspan=1 colspan=1>464</td><td rowspan=1 colspan=1>1134,11</td><td rowspan=1 colspan=1>SH2095HF</td></tr><tr><td rowspan=1 colspan=1>100</td><td rowspan=1 colspan=1>19</td><td rowspan=1 colspan=1>20</td><td rowspan=1 colspan=1>200</td><td rowspan=1 colspan=1>204</td><td rowspan=1 colspan=1>40</td><td rowspan=1 colspan=1>34</td><td rowspan=1 colspan=1>178</td><td rowspan=1 colspan=1>8</td><td rowspan=1 colspan=1>478.6</td><td rowspan=1 colspan=1>1193,81</td><td rowspan=1 colspan=1>SH20100HF</td></tr><tr><td rowspan=1 colspan=1>110</td><td rowspan=1 colspan=1>19</td><td rowspan=1 colspan=1>20</td><td rowspan=1 colspan=1>220</td><td rowspan=1 colspan=1>224</td><td rowspan=1 colspan=1>40</td><td rowspan=1 colspan=1>34</td><td rowspan=1 colspan=1>193</td><td rowspan=1 colspan=1>8</td><td rowspan=1 colspan=1>580,6</td><td rowspan=1 colspan=2>1313,19SH20110HF</td></tr></table>"
+            },
+            {
+                "category_id": 3,
+                "poly": [
+                    1063,
+                    776,
+                    1489,
+                    776,
+                    1489,
+                    1292,
+                    1063,
+                    1292
+                ],
+                "score": 0.948
+            },
+            {
+                "category_id": 3,
+                "poly": [
+                    1069,
+                    293,
+                    1513,
+                    293,
+                    1513,
+                    710,
+                    1069,
+                    710
+                ],
+                "score": 0.946
+            },
+            {
+                "category_id": 0,
+                "poly": [
+                    155,
+                    287,
+                    926,
+                    287,
+                    926,
+                    347,
+                    155,
+                    347
+                ],
+                "score": 0.941
+            },
+            {
+                "category_id": 1,
+                "poly": [
+                    155,
+                    485,
+                    945,
+                    485,
+                    945,
+                    557,
+                    155,
+                    557
+                ],
+                "score": 0.918
+            },
+            {
+                "category_id": 0,
+                "poly": [
+                    155,
+                    398,
+                    331,
+                    398,
+                    331,
+                    442,
+                    155,
+                    442
+                ],
+                "score": 0.906
+            },
+            {
+                "category_id": 2,
+                "poly": [
+                    95,
+                    2151,
+                    1473,
+                    2151,
+                    1473,
+                    2218,
+                    95,
+                    2218
+                ],
+                "score": 0.811
+            },
+            {
+                "category_id": 2,
+                "poly": [
+                    2,
+                    411,
+                    117,
+                    411,
+                    117,
+                    510,
+                    2,
+                    510
+                ],
+                "score": 0.799
+            },
+            {
+                "category_id": 7,
+                "poly": [
+                    154,
+                    1902,
+                    782,
+                    1902,
+                    782,
+                    1978,
+                    154,
+                    1978
+                ],
+                "score": 0.76
+            },
+            {
+                "category_id": 1,
+                "poly": [
+                    156,
+                    566,
+                    473,
+                    566,
+                    473,
+                    598,
+                    156,
+                    598
+                ],
+                "score": 0.152
+            },
+            {
+                "category_id": 2,
+                "poly": [
+                    66,
+                    2180,
+                    113,
+                    2180,
+                    113,
+                    2214,
+                    66,
+                    2214
+                ],
+                "score": 0.131
+            },
+            {
+                "category_id": 2,
+                "poly": [
+                    1500,
+                    578,
+                    1521,
+                    578,
+                    1521,
+                    711,
+                    1500,
+                    711
+                ],
+                "score": 0.128
+            },
+            {
+                "category_id": 6,
+                "poly": [
+                    156,
+                    566,
+                    473,
+                    566,
+                    473,
+                    598,
+                    156,
+                    598
+                ],
+                "score": 0.103
+            },
+            {
+                "category_id": 13,
+                "poly": [
+                    781,
+                    487,
+                    830,
+                    487,
+                    830,
+                    517,
+                    781,
+                    517
+                ],
+                "score": 0.69,
+                "latex": "2 0 ^ { \\circ }"
+            },
+            {
+                "category_id": 15,
+                "poly": [
+                    1193.0,
+                    771.0,
+                    1234.0,
+                    771.0,
+                    1234.0,
+                    800.0,
+                    1193.0,
+                    800.0
+                ],
+                "score": 1.0,
+                "text": ""
+            },
+            {
+                "category_id": 15,
+                "poly": [
+                    1066.0,
+                    990.0,
+                    1095.0,
+                    990.0,
+                    1095.0,
+                    1041.0,
+                    1066.0,
+                    1041.0
+                ],
+                "score": 1.0,
+                "text": ""
+            },
+            {
+                "category_id": 15,
+                "poly": [
+                    1115.0,
+                    996.0,
+                    1141.0,
+                    996.0,
+                    1141.0,
+                    1032.0,
+                    1115.0,
+                    1032.0
+                ],
+                "score": 1.0,
+                "text": ""
+            },
+            {
+                "category_id": 15,
+                "poly": [
+                    1339.0,
+                    996.0,
+                    1371.0,
+                    996.0,
+                    1371.0,
+                    1032.0,
+                    1339.0,
+                    1032.0
+                ],
+                "score": 1.0,
+                "text": ""
+            },
+            {
+                "category_id": 15,
+                "poly": [
+                    1395.0,
+                    991.0,
+                    1428.0,
+                    991.0,
+                    1428.0,
+                    1040.0,
+                    1395.0,
+                    1040.0
+                ],
+                "score": 1.0,
+                "text": ""
+            },
+            {
+                "category_id": 15,
+                "poly": [
+                    1453.0,
+                    994.0,
+                    1482.0,
+                    994.0,
+                    1482.0,
+                    1041.0,
+                    1453.0,
+                    1041.0
+                ],
+                "score": 1.0,
+                "text": ""
+            },
+            {
+                "category_id": 15,
+                "poly": [
+                    1195.0,
+                    1208.0,
+                    1230.0,
+                    1208.0,
+                    1230.0,
+                    1236.0,
+                    1195.0,
+                    1236.0
+                ],
+                "score": 1.0,
+                "text": ""
+            },
+            {
+                "category_id": 15,
+                "poly": [
+                    1143.0,
+                    358.0,
+                    1427.0,
+                    358.0,
+                    1427.0,
+                    613.0,
+                    1143.0,
+                    613.0
+                ],
+                "score": 1.0,
+                "text": ""
+            },
+            {
+                "category_id": 15,
+                "poly": [
+                    1496.0,
+                    576.0,
+                    1521.0,
+                    576.0,
+                    1521.0,
+                    714.0,
+                    1496.0,
+                    714.0
+                ],
+                "score": 1.0,
+                "text": ""
+            },
+            {
+                "category_id": 15,
+                "poly": [
+                    154.0,
+                    284.0,
+                    930.0,
+                    284.0,
+                    930.0,
+                    348.0,
+                    154.0,
+                    348.0
+                ],
+                "score": 1.0,
+                "text": ""
+            },
+            {
+                "category_id": 15,
+                "poly": [
+                    151.0,
+                    393.0,
+                    334.0,
+                    393.0,
+                    334.0,
+                    447.0,
+                    151.0,
+                    447.0
+                ],
+                "score": 1.0,
+                "text": ""
+            },
+            {
+                "category_id": 15,
+                "poly": [
+                    87.0,
+                    2160.0,
+                    125.0,
+                    2160.0,
+                    125.0,
+                    2225.0,
+                    87.0,
+                    2225.0
+                ],
+                "score": 1.0,
+                "text": ""
+            },
+            {
+                "category_id": 15,
+                "poly": [
+                    164.0,
+                    2150.0,
+                    1472.0,
+                    2150.0,
+                    1472.0,
+                    2219.0,
+                    164.0,
+                    2219.0
+                ],
+                "score": 1.0,
+                "text": ""
+            },
+            {
+                "category_id": 15,
+                "poly": [
+                    69.0,
+                    458.0,
+                    81.0,
+                    458.0,
+                    81.0,
+                    466.0,
+                    69.0,
+                    466.0
+                ],
+                "score": 1.0,
+                "text": ""
+            },
+            {
+                "category_id": 15,
+                "poly": [
+                    155.0,
+                    1902.0,
+                    531.0,
+                    1902.0,
+                    531.0,
+                    1937.0,
+                    155.0,
+                    1937.0
+                ],
+                "score": 1.0,
+                "text": ""
+            },
+            {
+                "category_id": 15,
+                "poly": [
+                    152.0,
+                    1938.0,
+                    786.0,
+                    1938.0,
+                    786.0,
+                    1981.0,
+                    152.0,
+                    1981.0
+                ],
+                "score": 1.0,
+                "text": ""
+            },
+            {
+                "category_id": 15,
+                "poly": [
+                    61.0,
+                    2174.0,
+                    119.0,
+                    2174.0,
+                    119.0,
+                    2220.0,
+                    61.0,
+                    2220.0
+                ],
+                "score": 1.0,
+                "text": ""
+            },
+            {
+                "category_id": 15,
+                "poly": [
+                    1499.0,
+                    577.0,
+                    1523.0,
+                    577.0,
+                    1523.0,
+                    714.0,
+                    1499.0,
+                    714.0
+                ],
+                "score": 1.0,
+                "text": ""
+            },
+            {
+                "category_id": 15,
+                "poly": [
+                    152.0,
+                    562.0,
+                    474.0,
+                    562.0,
+                    474.0,
+                    604.0,
+                    152.0,
+                    604.0
+                ],
+                "score": 1.0,
+                "text": ""
+            },
+            {
+                "category_id": 15,
+                "poly": [
+                    153.0,
+                    482.0,
+                    780.0,
+                    482.0,
+                    780.0,
+                    525.0,
+                    153.0,
+                    525.0
+                ],
+                "score": 1.0,
+                "text": ""
+            },
+            {
+                "category_id": 15,
+                "poly": [
+                    831.0,
+                    482.0,
+                    948.0,
+                    482.0,
+                    948.0,
+                    525.0,
+                    831.0,
+                    525.0
+                ],
+                "score": 1.0,
+                "text": ""
+            },
+            {
+                "category_id": 15,
+                "poly": [
+                    154.0,
+                    525.0,
+                    463.0,
+                    525.0,
+                    463.0,
+                    558.0,
+                    154.0,
+                    558.0
+                ],
+                "score": 1.0,
+                "text": ""
+            },
+            {
+                "category_id": 15,
+                "poly": [
+                    152.0,
+                    562.0,
+                    474.0,
+                    562.0,
+                    474.0,
+                    604.0,
+                    152.0,
+                    604.0
+                ],
+                "score": 1.0,
+                "text": ""
+            }
+        ],
+        "page_info": {
+            "page_no": 0,
+            "width": 1654,
+            "height": 2339
+        }
+    }
+]
