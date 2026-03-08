@@ -1,3 +1,8 @@
+# New llamaindex release, old feats DEPRECATED
+
+Find new implementations under this [link](https://github.com/run-llama/llama-cloud-py/tree/main/examples).
+
+## Setup
 1. Create and activate new python virtual env
 ```bash
 python -m venv new-release-llamaindex
