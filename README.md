@@ -19,6 +19,14 @@
 
 ---
 
+## Pipeline
+
+<p align="center">
+  <img src="rag-pipeline.png" width="50%">
+</p>
+
+---
+
 ## RAG Patterns
 
 | Pattern | Description |
@@ -88,13 +96,9 @@ rag-factory/
 │   │   ├── indexing/
 │   │   ├── retrieval/
 │   ├── patterns/ 
-│   │   ├── naive_rag/
 │   │   ├── hybrid_rag/
 │   │   ├── kg_rag/
 │   │   ├── agentic_rag/
-│   │   │   ├── pydantic_ai/
-│   │   │   ├── reAct/
-│   │   │   ├── smolagents/
 │   ├── evaluation/            # RAGAS scoring + comparison notebooks
 │   ├── ui/                    # Chatbot interface
 └── README.md
