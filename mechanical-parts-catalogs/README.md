@@ -48,36 +48,59 @@ semantic grouping of document pages:
 
 - **Document Extracting**
 
-  TWO-LAYER EXTRACTION ARCHITECTURE:
-  * Layer 1 — ``PER_PAGE``
-  Extract:
-  - Part-level metadata (DIN, module, material, torque range, fits, tolerance class, description)
+  1. TWO-LAYER EXTRACTION ARCHITECTURE:
+      * Layer 1 — ``PER_PAGE``
+        Extract:
+        - Part-level metadata (DIN, module, material, torque range, fits, tolerance class, description)
 
-    Why:
-    - Each page = one entity
-    - Clean schema
-    - Enables structured filtering + KG node creation
-    - Stable and deterministic
+          Why:
+          - Each page = one entity
+          - Clean schema
+          - Enables structured filtering + KG node creation
+          - Stable and deterministic
 
-  * Layer 2 - ``PER_TABLE_ROW``:
-  Extract:
-  - Each dimension/spec row separately
-  (e.g., size variant, bore diameter, torque value, tolerance per row)
+      * Layer 2 - ``PER_TABLE_ROW``:
+        Extract:
+        - Each dimension/spec row separately
+        (e.g., size variant, bore diameter, torque value, tolerance per row)
 
-    Why:
-    - Long tables cause LLM truncation in PER_DOC
-    - Guarantees exhaustive row coverage
-    - Enables exact numeric lookups without hallucination
-    - Supports range filtering and comparison
+          Why:
+          - Long tables cause LLM truncation in PER_DOC
+          - Guarantees exhaustive row coverage
+          - Enables exact numeric lookups without hallucination
+          - Supports range filtering and comparison
 
-  > Metadata extraction gives entity identity + filters (**“Who is the part?”**) and row extraction gives precise engineering lookup (**“What are its exact dimension variants?”**). 
+        > Metadata extraction gives entity identity + filters (**“Who is the part?”**) and row extraction gives precise engineering lookup (**“What are its exact dimension variants?”**). 
+        
+        The architecture prevents:
+          * Missing table rows
+          * Numeric hallucinations
+          * Mixed specs across parts
+
+  2. mapping layer 1 to layer 2:
+      - Builds a `dict` keyed by `part_id` from all Layer 1 parts
+      - Iterates every Layer 2 row and looks up its `part_id` in that dict
+      - Appends matching rows into `part.dimension_rows`
+      - Returns the final `Dict[str, PartWithRows]` — each part fully assembled with all its dimension rows nested inside
+
+      ### Data shape after mapping
+
+      ```
+      {
+        "spur_gear_m1_0_pom": PartWithRows(
+            family="spur_gear",
+            module=1.0,
+            spur_gear_material="POM",
+            dimension_rows=[
+                TableRowSchema(ZZ=10, ZB=..., art_nr="12345", ...),
+                TableRowSchema(ZZ=12, ZB=..., art_nr="12346", ...),
+                ...
+            ]
+        ),
+        ...
+      }
+      ```
   
-  The architecture prevents:
-    * Missing table rows
-    * Numeric hallucinations
-    * Mixed specs across parts
-
-  (TODO) mapping layer 1 to layer 2
 
 - **Chunking** — fixed-size, sentence-aware, and semantic chunking strategies
 - **Embedding** — dense vector representations (e.g. `text-embedding-3-small`, `bge-m3`)
