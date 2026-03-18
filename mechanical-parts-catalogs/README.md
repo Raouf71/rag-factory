@@ -190,4 +190,46 @@ semantic grouping of document pages:
 
 </details>
 
+---
+
+## UI Chatbot
+
+A conversational RAG interface built on top of the evaluated pipelines:
+
+- Domain selector (Mechanical / Medical)
+- Pattern selector (Naive / Hybrid / KG / Agentic)
+- Source citation display with retrieved chunk previews
+- [RAGAS](https://docs.ragas.io/) score display per response (dev mode)
+
+---
+
+## Evaluation — RAGAS
+
+All pipelines are benchmarked using [RAGAS](https://docs.ragas.io/):
+
+| Metric | What it measures |
+|---|---|
+| **Faithfulness** | Is the answer grounded in retrieved context? |
+| **Answer Relevance** | Does the answer address the question? |
+| **Context Precision** | Are retrieved chunks actually useful? |
+| **Context Recall** | Did retrieval capture all necessary information? |
+
+Results are logged and compared across patterns and frameworks.
+
+---
+
+## Stack Summary
+
+| Layer | Tools |
+|---|---|
+| Frameworks | LlamaIndex, LangChain |
+| Agentic | PydanticAI, ReAct, smolagents |
+| Vector Stores | FAISS, Qdrant, Weaviate |
+| Hybrid Search | Elasticsearch (BM25 + knn), PostgreSQL (pgvector + FTS) |
+| Graph Store | Neo4j / NetworkX |
+| Embeddings | OpenAI, BGE |
+| Re-ranking | JINA Reranker |
+| Evaluation | RAGAS |
+| UI | Streamlit / Gradio |
+
 [🔼 Back to top](#rag-pipeline-stages)
