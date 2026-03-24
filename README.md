@@ -4,7 +4,7 @@
 ## Domains:
 
 - **Mechanical Parts Catalogs** — structured, technical, terminology-heavy documents
-- **Medical Bills** — semi-structured, entity-rich, compliance-sensitive documents
+<!-- - **Medical Bills** — semi-structured, entity-rich, compliance-sensitive documents -->
 
 ## Coming soon:
 - WIKI page hosting the project documentation
