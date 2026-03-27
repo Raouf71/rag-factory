@@ -54,7 +54,7 @@ Both pipelines are implemented and compared across two frameworks:
 
 ```
 rag-factory/
-├── rag-domain                 # Mechanical catalogs/Medical bills
+├── rag-domain                 # Mechanical catalogs
 │   ├── data/                  # Raw documents
 │   ├── pipelines/ 
 │   │   ├── ingestion/
