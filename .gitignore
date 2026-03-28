@@ -1,4 +1,5 @@
 .vscode
+.env
 sandbox/new-shit/
 llamaindex-venv
 todo.md
