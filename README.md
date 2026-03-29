@@ -54,19 +54,28 @@ Both pipelines are implemented and compared across two frameworks:
 
 ```
 rag-factory/
-├── rag-domain                 # Mechanical catalogs
-│   ├── data/                  # Raw documents
-│   ├── pipelines/ 
-│   │   ├── ingestion/
-│   │   ├── chunking/
-│   │   ├── embedding/
-│   │   ├── indexing/
-│   │   ├── retrieval/
-│   ├── patterns/ 
-│   │   ├── hybrid_rag/
-│   │   ├── kg_rag/
-│   │   ├── agentic_rag/
-│   ├── evaluation/            # RAGAS scoring + comparison notebooks
-│   ├── ui/                    # Chatbot interface
+├── rag-domain                   # Mechanical catalogs
+│   ├── config/              
+│       └── settings.py           # all env vars, constants, model settings
+│   ├── pipeline/ 
+│   │   ├── extraction.py         # extract_layer1_fields, extract_layer2_fields
+│   │   ├── mapping.py            # normalize_*, build_part_id, map_parts_and_rows
+│   │   ├── nodes.py              # build_retrieval_nodes, text/metadata builders
+│   │   ├── indexing.py           # build_pgvector_store, index_nodes_with_store
+│   │   ├── graph.py              # Neo4j KG build/load
+│   │   └── run_pipeline.py       # orchestrates all steps end-to-end
+│   ├── retrieval/
+│   │   ├── intent.py             # QueryIntent, extract_query_intent
+│   │   ├── filters.py            # RANGE_FIELD_MAP, build_filtered_retriever
+│   │   └── retriever.py          # build_custom_retriever, reranker toggle
+│   ├── app/
+│       ├── chatbot.py           # Chatbot UI 
+│   ├── data/                    # Raw documents
+│   │   └── gears.pdf  
+│   └── evaluation/           # RAGAS scoring + comparison notebooks
+├── cache/                    # persisted extraction results
+├── .env                      # API keys, passwords — never committed
+├── .gitignore                # includes .env, cache/, *.ipynb outputs
+├── requirements.txt
 └── README.md
 ```
