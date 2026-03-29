@@ -1,5 +1,5 @@
-llama-index-embeddings-openai 
-llama-index-postprocessor-flag-embedding-reranker 
-git clone git+https://github.com/FlagOpen/FlagEmbedding.git 
-llama-index-graph-stores-neo4j 
-llama-index-vector-stores-faiss
+pip install llama-cloud>=1.0
+pip install llama-index-llms-deepseek
+pip install llama-index-embeddings-openai 
+pip install torch sentence-transformers
+pip install llama-index-graph-stores-neo4j 
