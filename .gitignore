@@ -1,5 +1,8 @@
 .vscode
 .env
+storage/
+__pycache__/
+*.pyc
 sandbox/new-shit/
 llamaindex-venv
 todo.md
