@@ -159,7 +159,7 @@ The three layers are:
 ---
 
 ## Summary
-
+---
 ```perl
 Layer 1 — Online Signals (real users, real time)
 └── CTR, thumbs up/down, session abandonment, follow-up question rate
@@ -173,8 +173,17 @@ Layer 3 — LLM-as-Judge (on flagged/low-confidence outputs)
 Layer 4 — Human Eval (periodic, targeted)
 └── Spot-check on failure clusters found in Layer 1–2
 ```
+---
+
+<p align="center">
+<img src="evaluation-flowchart.png" width="65%">
+</p>
+
+---
 
 The most important principle: **never evaluate RAG as a black box.**
 1. Decompose it
 2. instrument it
 3. categorize its failures.
+
+[🔼 Back to top](#rag-evaluation-roadmap-for-production)
