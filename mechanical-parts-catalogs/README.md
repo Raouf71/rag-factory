@@ -1,234 +1,72 @@
-# Step-by-Step Breakdown of the Pipeline
+# Mechanical Parts Catalog — RAG Pipeline Stages
 
+A production-ready RAG pipeline built for querying industrial catalogs of mechanical parts using hybrid vector search, metadata filtering, and knowledge graph traversal — going well beyond a standard RAG setup.
 
-## RAG Pipeline Stages
+---
 
-Each domain goes through the full ingestion-to-answer pipeline:
+## Pipeline Stages
 
-- **Document Parsing** — PDF/HTML/CSV.<br>
-Parsing can be done in two different ways: <br>
-  * ``Parse into Document``:
-    * Output = larger logical units (often per page or file)
-    * Chunking happens **later** via your chunking strategy (chunk_size, overlap)
-    * More flexible
-    * Best when:
-      * control over splitting is required
-      * experimenting with chunk sizes
-      * combined with structured extraction
-      * hybrid/KG pipelines are built <br>
+- <ins>**Step 1 — Two-Layer Document Extraction**</ins>:
+  - **Layer 1**: extracts ``part-level metadata`` (family, material, module, tooth type, engagement angle)
+  - **Layer 2**: extracts every ``row-level dimension data`` (teeth count, diameters, weight, torque, article number)
 
-    👉 Recommended for production RAG.
-  * ``Parse into Node``:
-    * Output = already pre-chunked pieces
-    * Chunking happens **during parsing**
-    * Less control afterward
-    * Best when:
-      * quick setup is required
-      * parser’s splitting is trusted
-      * no custom chunk logic needed<br>
+  <p align="center">
+    <img src="two-layer-architecture.png" width="60%">
+  </p>
 
-    👉 Recommended for fast prototyping.
+- <ins>**Step 2 — Normalization & ID Assignment**</ins>:
+  - Family, material, and module values normalized to canonical forms 
+  - A deterministic `part_id` is built from `(family, module, material)` for each part and row
 
-- **Splitting**<br>
-semantic grouping of document pages:
-  * e.g., 1 page = 1 mechanical part
-  * preserves entity boundaries<br>
-```(TODO)
-👉 Split before extraction, because extraction should **operate on a clean entity unit**.
-    <br>
-    
-    If you don’t split:
-      * Extractor may mix multiple parts
-      * Wrong DIN/material/torque assigned<br>
+- <ins>**Step 3 — Layer Mapping & Join**</ins>:
+  - Layer 1 **parts** and Layer 2 **rows** get joined via matching `part_id`
+  - Orphaned rows (unmatched) are logged with their unmatched IDs for inspection
 
-    If you split:
-      * Correct metadata association
-      * No cross-part contamination
-```
-
-- **Document Extracting**
-
-  1. TWO-LAYER EXTRACTION ARCHITECTURE:
-      * Layer 1 — ``PER_PAGE``
-        Extract:
-        - Part-level metadata (DIN, module, material, torque range, fits, tolerance class, description)
-
-          Why:
-          - Each page = one entity
-          - Clean schema
-          - Enables structured filtering + KG node creation
-          - Stable and deterministic
-
-      * Layer 2 - ``PER_TABLE_ROW``:
-        Extract:
-        - Each dimension/spec row separately
-        (e.g., size variant, bore diameter, torque value, tolerance per row)
-
-          Why:
-          - Long tables cause LLM truncation in PER_DOC
-          - Guarantees exhaustive row coverage
-          - Enables exact numeric lookups without hallucination
-          - Supports range filtering and comparison
-
-        > Metadata extraction gives entity identity + filters (**“Who is the part?”**) and row extraction gives precise engineering lookup (**“What are its exact dimension variants?”**). 
-        
-        The architecture prevents:
-          * Missing table rows
-          * Numeric hallucinations
-          * Mixed specs across parts
-
-  2. mapping layer 1 to layer 2:
-      - Builds a `dict` keyed by `part_id` from all Layer 1 parts
-      - Iterates every Layer 2 row and looks up its `part_id` in that dict
-      - Appends matching rows into `part.dimension_rows`
-      - Returns the final `Dict[str, PartWithRows]` — each part fully assembled with all its dimension rows nested inside
-
-      ### Data shape after mapping
-
-      ```
-      {
-        "spur_gear_m1_0_pom": PartWithRows(
-            family="spur_gear",
-            module=1.0,
-            spur_gear_material="POM",
-            dimension_rows=[
-                TableRowSchema(ZZ=10, ZB=..., art_nr="12345", ...),
-                TableRowSchema(ZZ=12, ZB=..., art_nr="12346", ...),
-                ...
-            ]
-        ),
-        ...
-      }
-      ```
+- <ins>**Step 4 —  Hierarchical Node Construction (Parent-Child Node Graph)**</ins>:
+  - **Parent nodes** — ``one per mechanical part``, carrying part-level metadata
+  - **Child nodes** — ``one per table row``, linked back to their parent via `parent_node_id`
+  - Parent nodes carry a ``natural-language descriptive text`` for embedding, alongside ``structured metadata`` for exact and range filtering; child nodes follow the same split.
   
+- <ins>**Step 5 — Dual Indexing**</ins>:
 
-- **Chunking** — fixed-size, sentence-aware, and semantic chunking strategies
-- **Embedding** — dense vector representations (e.g. `text-embedding-3-small`, `bge-m3`)
-- **Indexing** — vector stores (FAISS, Qdrant, Weaviate, PostgreSQL) + graph stores for KG-RAG
-- **Retrieval** — top-k similarity search, hybrid search, graph traversal, agent-driven retrieval
+  | Store | Purpose |
+  |---|---|
+  | pgvector (basic) | Dense vector similarity search |
+  | pgvector (hybrid) | Dense vector + BM25 keyword search |
+  | Neo4j | Knowledge graph with schema-validated typed relationships between entities: `GEAR`, `MATERIAL`, `MODULE`, `FAMILY`, `ARTICLE` |
 
-## Challenges of RAG for catalogs
+- **Step 6 — Metadata filtering + Query Intent Extraction**
+  - User query parsed into a structured `QueryIntent` object
+  - Extracts ``exact-match fields`` (family, material, module) and ``range filters`` (torque, weight, teeth count, diameters)
 
+- **Step 7 — Retrieval**
+  - **Vector retriever** — dense semantic search (pgvector)
+  - **Hybrid retriever** — dense + BM25 keyword search (pgvector)
+  - **Hybrid + metadata filtering** — hybrid search with structured filters on numeric dimensions
+  - **KG retriever** — graph traversal via typed relations + LLM synonym expansion (Neo4j)
+  - **Custom fusion retriever** — combines hybrid + metadata filtering and KG retrieval, re-ranks results
 
+- **Step 8 — Response Synthesis**
+  - Retrieved nodes passed to an LLM with a domain-grounded prompt
+  - Responses grounded strictly in catalog data with page-level source references
 
-## Pipeline Details
-
-<details>
-<summary>basic pipeline</summary>
-
----
-
-## Step 1 — Parsing / Loading
-**Raw PDF → `Document` objects**
-
-- Tool: `LlamaParse(...).load_data("../data/bevel_gear.pdf")`
-- Output: a list of LlamaIndex `Document` objects (`docs`)
-
----
-
-## Step 2 — Splitting
-**`Document` objects → smaller `Document` / Node chunks**
-
-- Strategy: manual page-level split using `doc.text.split("\n---\n")`
-- Each chunk is re-wrapped: `sub_doc = Document(text=..., metadata=...)`
-- Output: `sub_docs` — a list of page-level `Document` objects
+  <p align="center">
+    <img src="rag-pipeline.png" width="90%">
+  </p>
 
 ---
 
-## Step 3 — Indexing (Vector)
-**`sub_docs` → searchable vector index**
-
-- Index: `VectorStoreIndex.from_documents(sub_docs, embed_model=...)`
-- Retriever: `base_index.as_retriever(similarity_top_k=10)`
-- Query interface: `RetrieverQueryEngine`
-
----
-
-## Step 4 — Knowledge Graph Extraction + Indexing
-**Entity/relationship extraction → graph store (Neo4j)**
-
-- Graph store: `Neo4jPGStore`
-- Graph index: `PropertyGraphIndex.from_documents(...)`
-- KG extractors:
-  - `ImplicitPathExtractor()` — implicit path inference
-  - `SimpleLLMPathExtractor(llm=OpenAI(...), max_paths_per_chunk=..., num_workers=...)` — LLM-driven path extraction
-- Embeddings for graph context retrieval: `OpenAIEmbedding("text-embedding-3-small")`
-
----
-
-## Step 5 — Retrieval (Vector + KG → Merged)
-**Two retrievers → fused results**
-
-- Vector retriever: `vector_retriever = base_index.as_retriever(...)`
-- KG retriever: `VectorContextRetriever(...)` — embedding similarity + graph expansion via `path_depth`
-- Fusion: `CustomRetriever(BaseRetriever)` — merges results by `node_id`, deduplicating across both retrievers
-
-</details>
-
-
-<details>
-<summary>advanced pipeline</summary>
-
----
-
-## Step 1 — Parsing / Loading
-
----
-
-## Step 2 — Splitting
-
----
-
-## Step 3 — Indexing
----
-
-## Step 4 — Knowledge Graph Extraction + Indexing
-
----
-
-## Step 5 — Retrieval (Vector + KG → Merged)
-
-</details>
-
----
-
-## UI Chatbot
-
-A conversational RAG interface built on top of the evaluated pipelines:
-
-- Domain selector (Mechanical / Medical)
-- Pattern selector (Naive / Hybrid / KG / Agentic)
-- Source citation display with retrieved chunk previews
-- [RAGAS](https://docs.ragas.io/) score display per response (dev mode)
-
----
-
-## Evaluation — RAGAS
-
-All pipelines are benchmarked using [RAGAS](https://docs.ragas.io/):
-
-| Metric | What it measures |
-|---|---|
-| **Faithfulness** | Is the answer grounded in retrieved context? |
-| **Answer Relevance** | Does the answer address the question? |
-| **Context Precision** | Are retrieved chunks actually useful? |
-| **Context Recall** | Did retrieval capture all necessary information? |
-
-Results are logged and compared across patterns and frameworks.
-
----
 
 ## Stack Summary
 
 | Layer | Tools |
 |---|---|
-| Frameworks | LlamaIndex, LangChain |
+| Frameworks | LlamaIndex, LlamaCloud |
 | Agentic | PydanticAI, ReAct, smolagents |
-| Vector Stores | FAISS, Qdrant, Weaviate |
-| Hybrid Search | Elasticsearch (BM25 + knn), PostgreSQL (pgvector + FTS) |
-| Graph Store | Neo4j / NetworkX |
+| Hybrid Search | PostgreSQL + pgvector |
+| Graph Store | Neo4j |
 | Embeddings | OpenAI, BGE |
-| Re-ranking | JINA Reranker |
+| Re-ranking | JINA Reranker / ms-marco-MiniLM-L2-v2 |
 | Evaluation | RAGAS |
 | UI | Streamlit / Gradio |
 

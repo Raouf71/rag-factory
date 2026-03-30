@@ -6,9 +6,12 @@
 - **Mechanical Parts Catalogs** — structured, technical, terminology-heavy documents
 <!-- - **Medical Bills** — semi-structured, entity-rich, compliance-sensitive documents -->
 
-## Coming soon:
+## 🚧 In Progress:
+
+An annotated Jupyter notebook is available for exploring and testing the full pipeline step by step: &nbsp;&nbsp;&nbsp;&nbsp;   [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/Raouf71/rag-factory/blob/master/mechanical-parts-catalogs/notebooks/llamaindex-v2/kg-rag-postgres-v2.ipynb)
+
+- RAG-Chatbot with UI (coming soon)
 - WIKI page hosting the project documentation
-- RAG-Chatbot with UI
 
 ---
 
