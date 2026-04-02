@@ -29,7 +29,7 @@ EMBED_DIM = 1536  # text-embedding-3-small
 # -----------------------------------------------------------------------
 # Paths
 # -----------------------------------------------------------------------
-PDF_PATH       = os.getenv("PDF_PATH", "./data/gear_diff_m.pdf")
+PDF_PATH       = os.getenv("PDF_PATH", "mechanical_parts_catalogs/data/gear_diff_m.pdf")
 KG_PERSIST_DIR = "./storage/property_graph"
 
 # -----------------------------------------------------------------------

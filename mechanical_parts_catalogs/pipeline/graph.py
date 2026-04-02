@@ -11,6 +11,8 @@ from llama_index.core.indices.property_graph import (
     SchemaLLMPathExtractor,
     VectorContextRetriever,
     LLMSynonymRetriever,
+    ImplicitPathExtractor,
+    SimpleLLMPathExtractor,
 )
 from llama_index.graph_stores.neo4j import Neo4jPropertyGraphStore
 from config.settings import KG_PERSIST_DIR
@@ -104,7 +106,6 @@ def build_property_graph_index(
             nodes=all_nodes,
             storage_context=storage_context,
             embed_model=Settings.embed_model,
-            llm=Settings.llm,
             llm=Settings.llm,
             kg_extractors=[custom_kg_extractor],
             # kg_extractors=basic_kg_extractors,

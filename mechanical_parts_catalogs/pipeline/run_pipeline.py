@@ -1,6 +1,8 @@
 import asyncio
 import logging
 import os
+import sys
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from dotenv import load_dotenv
 from llama_index.core import Settings
 from llama_index.core.query_engine import RetrieverQueryEngine
@@ -8,23 +10,24 @@ from llama_index.llms.openai import OpenAI
 from llama_index.llms.deepseek import DeepSeek
 from llama_index.embeddings.openai import OpenAIEmbedding
 
-from schemas import PartSchema, TableRowSchema
-from extraction import extract_layer1_fields, extract_layer2_fields
-from mapping import (
+from pipeline.schemas import PartSchema, TableRowSchema
+from pipeline.extraction import extract_layer1_fields, extract_layer2_fields
+from pipeline.mapping import (
     attach_part_id_to_layer1_parts,
     attach_part_id_to_layer2_rows,
     map_parts_and_rows,
     log_mapping_diagnostics,
 )
-from nodes import build_retrieval_nodes
-from indexing import build_pgvector_store, index_nodes_with_store
-from graph import get_or_build_property_graph_index
+from pipeline.nodes import build_retrieval_nodes
+from pipeline.indexing import build_pgvector_store, index_nodes_with_store
+from pipeline.graph import get_or_build_property_graph_index
 from retrieval.retriever import (
     build_basic_vector_retriever,
     build_basic_hybrid_retriever,
     build_kg_retriever,
     build_custom_retriever,
 )
+
 from config.settings import (
     PDF_PATH,
     EMBED_DIM,
@@ -62,10 +65,10 @@ def setup_models():
         api_key=OPENAI_KEY,
     )
 
-    # --- Assing models
-    Settings.llm = deepseek_model
-    # Settings.llm = gpt_4o_mini_model
+    # --- Setup models
 
+    Settings.llm = gpt_4o_mini_model
+    # Settings.llm = deepseek_model
     Settings.embed_model = embedding_3_small_model
 
 # -----------------------------------------------------------------------
@@ -164,5 +167,5 @@ def run_query(query: str, pipeline: dict, debug: bool = False) -> str:
 # -----------------------------------------------------------------------
 if __name__ == "__main__":
     pipeline = asyncio.run(run_pipeline(debug=False))
-    response = run_query("steel spur gear with module 1.0", pipeline)
+    response = run_query("POM spur gear with module 2.0", pipeline)
     print(response)

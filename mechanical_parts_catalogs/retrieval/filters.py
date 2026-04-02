@@ -9,7 +9,7 @@ from llama_index.core.vector_stores import (
     FilterCondition,
 )
 from llama_index.core.vector_stores.types import VectorStoreQueryMode
-from mapping import normalize_family, normalize_material
+from pipeline.mapping import normalize_family, normalize_material
 from retrieval.intent import QueryIntent
 
 # -----------------------------------------------------------------------

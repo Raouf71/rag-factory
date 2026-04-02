@@ -2,8 +2,8 @@ import logging
 from dataclasses import dataclass, field
 from typing import List, Dict, Optional
 from pydantic import Field
-from schemas import PartSchema, TableRowSchema
-from extraction import ExtractionResult
+from pipeline.schemas import PartSchema, TableRowSchema
+from pipeline.extraction import ExtractionResult
 
 # -----------------------------------------------------------------------
 # Setting up (Credentials, logger, etc.)

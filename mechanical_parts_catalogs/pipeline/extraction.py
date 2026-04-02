@@ -3,7 +3,7 @@ import json
 from dataclasses import dataclass
 from llama_cloud import AsyncLlamaCloud
 from typing import List, Any, Dict, Optional
-from schemas import PartSchema, TableRowSchema
+from pipeline.schemas import PartSchema, TableRowSchema
 
 # -----------------------------------------------------------------------
 # Setting up (Credentials, logger, etc.)

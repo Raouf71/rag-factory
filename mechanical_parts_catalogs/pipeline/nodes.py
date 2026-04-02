@@ -3,8 +3,8 @@ import hashlib
 import json
 from typing import List, Dict, Tuple
 from llama_index.core.schema import TextNode
-from schemas import PartSchema, TableRowSchema
-from mapping import PartWithRows
+from pipeline.schemas import PartSchema, TableRowSchema
+from pipeline.mapping import PartWithRows
 
 # -----------------------------------------------------------------------
 # Setting up (Credentials, logger, etc.)
