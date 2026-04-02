@@ -8,9 +8,9 @@
 
 ## 🚧 In Progress:
 
-An annotated Jupyter notebook is available for exploring and testing the full pipeline step by step: &nbsp;&nbsp;&nbsp;&nbsp; [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/Raouf71/rag-factory/blob/master/mechanical-parts-catalogs/notebooks/llamaindex-v2/kg-rag-postgres-v2.ipynb)
+An annotated Jupyter notebook is available for exploring and testing the full pipeline step by step: &nbsp;&nbsp;&nbsp;&nbsp; [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/Raouf71/rag-factory/blob/master/mechanical_parts_catalogs/notebooks/llamaindex-v2/kg-rag-postgres-v2.ipynb)
 
-- Visualize the pipeline [here](https://github.com/Raouf71/rag-factory/tree/master/mechanical-parts-catalogs)
+- Visualize the pipeline [here](https://github.com/Raouf71/rag-factory/tree/master/mechanical_parts_catalogs)
 - RAG-Chatbot with UI (coming soon)
 - WIKI page hosting the project documentation
 
@@ -58,7 +58,7 @@ Both pipelines are implemented and compared across two frameworks:
 
 ```
 rag-factory/
-├── rag-domain                   # Mechanical catalogs
+├── mechanical_parts_catalogs  
 │   ├── config/              
 │       └── settings.py           # all env vars, constants, model settings
 │   ├── pipeline/ 
