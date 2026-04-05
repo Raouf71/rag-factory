@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import List, Literal
 from dotenv import load_dotenv
 
+from llama_index.llms.openai import OpenAI
 from llama_index.core import StorageContext, Settings, load_index_from_storage
 from llama_index.core.schema import TextNode
 from llama_index.core.indices.property_graph import (

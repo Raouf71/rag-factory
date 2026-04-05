@@ -4,3 +4,4 @@ pip install llama-index-embeddings-openai
 pip install torch sentence-transformers
 pip install llama-index-graph-stores-neo4j 
 streamlit
+streamlit-agraph

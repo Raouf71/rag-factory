@@ -1,0 +1,1552 @@
+import asyncio
+import logging
+import sys
+import os
+from typing import Optional
+
+import streamlit as st
+from llama_index.core import Settings
+from llama_index.core.memory import ChatMemoryBuffer
+from llama_index.core.chat_engine import CondensePlusContextChatEngine
+from llama_index.llms.deepseek import DeepSeek
+from llama_index.llms.openai import OpenAI
+from llama_index.embeddings.openai import OpenAIEmbedding
+from llama_index.core.postprocessor import SentenceTransformerRerank
+
+sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
+
+from pipeline.extraction import extract_layer1_fields, extract_layer2_fields
+from pipeline.mapping import (
+    attach_part_id_to_layer1_parts,
+    attach_part_id_to_layer2_rows,
+    map_parts_and_rows,
+    log_mapping_diagnostics,
+)
+from pipeline.nodes import build_retrieval_nodes
+from pipeline.indexing import build_pgvector_store, index_nodes_with_store
+from pipeline.graph import get_or_build_property_graph_index
+from pipeline.schemas import PartSchema, TableRowSchema
+from retrieval.retriever import (
+    build_basic_vector_retriever,
+    build_basic_hybrid_retriever,
+    build_kg_retriever,
+    build_custom_retriever,
+)
+from retrieval.filters import build_filtered_retriever
+from retrieval.intent import extract_query_intent
+from config.settings import (
+    DEEPSEEK_KEY,
+    OPENAI_KEY,
+    SYSTEM_PROMPT_L1,
+    SYSTEM_PROMPT_L2,
+    PDF_PATH,
+)
+from streamlit_agraph import agraph, Node, Edge, Config
+
+# -----------------------------------------------------------------------
+# Page config
+# -----------------------------------------------------------------------
+st.set_page_config(
+    page_title="Mechanical Part AI-Assistant",
+    page_icon="⚙️",
+    layout="wide",
+    initial_sidebar_state="collapsed",
+)
+
+# -----------------------------------------------------------------------
+# Custom CSS - SaaS / Startup style
+# -----------------------------------------------------------------------
+st.markdown(
+    """
+<style>
+    .block-container {
+        padding-top: 1.1rem;
+        padding-bottom: 1.5rem;
+        max-width: 1450px;
+    }
+
+    header[data-testid="stHeader"] {
+        background: rgba(0, 0, 0, 0);
+    }
+
+    [data-testid="stSidebar"] {
+        display: none;
+    }
+
+    /* ---------- Navbar ---------- */
+    .top-nav-shell {
+        border: 1px solid #e4e4e7;
+        border-radius: 20px;
+        background: #ffffff;
+        box-shadow: 0 10px 30px rgba(24, 24, 27, 0.05);
+        padding: 0.9rem 1.2rem;
+        margin-bottom: 1.2rem;
+    }
+
+    .brand-wrap {
+        display: flex;
+        align-items: center;
+        gap: 0.85rem;
+    }
+
+    .brand-icon {
+        width: 42px;
+        height: 42px;
+        border-radius: 14px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: linear-gradient(135deg, #8b5cf6, #7c3aed);
+        color: white;
+        font-size: 1.1rem;
+        font-weight: 700;
+        box-shadow: 0 10px 24px rgba(139, 92, 246, 0.22);
+    }
+
+    .brand-title {
+        font-size: 1.2rem;
+        font-weight: 700;
+        color: #18181b;
+        line-height: 1.15;
+    }
+
+    .brand-subtitle {
+        font-size: 0.88rem;
+        color: #71717a;
+        margin-top: 2px;
+    }
+
+    /* ---------- Generic cards ---------- */
+    # .glass-card {
+    #     background: #ffffff;
+    #     border: 1px solid #e4e4e7;
+    #     border-radius: 22px;
+    #     box-shadow: 0 10px 30px rgba(24, 24, 27, 0.05);
+    #     padding: 1.2rem;
+    # }
+
+    .subtle-card {
+        background: #fafafa;
+        border: 1px solid #e4e4e7;
+        border-radius: 18px;
+        padding: 1rem;
+    }
+
+    .section-title {
+        font-size: 1.1rem;
+        font-weight: 700;
+        color: #18181b;
+        margin-bottom: 0.2rem;
+    }
+
+    .section-subtitle {
+        font-size: 0.93rem;
+        color: #71717a;
+        margin-bottom: 1rem;
+    }
+
+    .active-pill {
+        display: inline-block;
+        background: #f5f3ff;
+        color: #7c3aed;
+        border: 1px solid #ddd6fe;
+        border-radius: 999px;
+        padding: 0.32rem 0.78rem;
+        font-size: 0.82rem;
+        font-weight: 600;
+        margin-bottom: 1rem;
+    }
+
+    .mode-badge {
+        display: inline-block;
+        background: #fafafa;
+        border: 1px solid #e4e4e7;
+        color: #18181b;
+        border-radius: 999px;
+        padding: 0.42rem 0.85rem;
+        font-size: 0.8rem;
+        font-weight: 600;
+        margin-bottom: 1rem;
+    }
+
+    /* ---------- Buttons ---------- */
+    div.stButton > button,
+    div.stDownloadButton > button {
+        border-radius: 14px !important;
+        border: 1px solid #e4e4e7 !important;
+        background: #ffffff !important;
+        color: #18181b !important;
+        font-weight: 600 !important;
+        transition: 0.2s ease !important;
+    }
+
+    div.stButton > button:hover,
+    div.stDownloadButton > button:hover {
+        border-color: #c4b5fd !important;
+        color: #7c3aed !important;
+        box-shadow: 0 8px 20px rgba(139, 92, 246, 0.12);
+    }
+
+    /* ---------- Step cards ---------- */
+    .step-card {
+        background: #ffffff;
+        border: 1px solid #e4e4e7;
+        border-radius: 18px;
+        padding: 0.95rem 1rem;
+        margin-bottom: 0.65rem;
+    }
+
+    .step-card.done { border-left: 5px solid #22c55e; }
+    .step-card.running { border-left: 5px solid #8b5cf6; }
+    .step-card.error { border-left: 5px solid #ef4444; }
+    .step-card.idle { border-left: 5px solid #d4d4d8; }
+
+    .step-label {
+        font-size: 0.72rem;
+        font-weight: 700;
+        color: #71717a;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+    }
+
+    .step-name {
+        font-size: 1rem;
+        font-weight: 700;
+        color: #18181b;
+        margin-top: 0.18rem;
+    }
+
+    .step-stat {
+        color: #71717a;
+        font-size: 0.84rem;
+        margin-top: 0.3rem;
+        line-height: 1.45;
+    }
+
+    .log-box {
+        background: #fafafa;
+        border: 1px solid #e4e4e7;
+        border-radius: 14px;
+        padding: 0.8rem 0.95rem;
+        font-size: 0.78rem;
+        color: #3f3f46;
+        max-height: 180px;
+        overflow-y: auto;
+        white-space: pre-wrap;
+        margin-top: 0.45rem;
+    }
+
+    /* ---------- Chat ---------- */
+    # .chat-shell {
+    #     background: #ffffff;
+    #     border: 1px solid #e4e4e7;
+    #     border-radius: 24px;
+    #     box-shadow: 0 10px 30px rgba(24, 24, 27, 0.05);
+    #     padding: 1rem;
+    #     min-height: 420px;
+    # }
+
+    .msg-row {
+        display: flex;
+        width: 100%;
+        margin-bottom: 0.9rem;
+    }
+
+    .msg-row.user {
+        justify-content: flex-end;
+    }
+
+    .msg-row.assistant {
+        justify-content: flex-start;
+    }
+
+    .msg-bubble {
+        max-width: 74%;
+        padding: 0.95rem 1rem;
+        border-radius: 18px;
+        font-size: 0.97rem;
+        line-height: 1.55;
+        word-wrap: break-word;
+        border: 1px solid #e4e4e7;
+    }
+
+    .msg-bubble.user {
+        background: linear-gradient(135deg, #8b5cf6, #7c3aed);
+        color: white;
+        border: none;
+        border-bottom-right-radius: 6px;
+        box-shadow: 0 10px 24px rgba(139, 92, 246, 0.18);
+    }
+
+    .msg-bubble.assistant {
+        background: #fafafa;
+        color: #18181b;
+        border-bottom-left-radius: 6px;
+    }
+
+    .msg-meta {
+        font-size: 0.72rem;
+        color: #71717a;
+        margin-bottom: 0.25rem;
+        font-weight: 600;
+    }
+
+    .sources-wrap {
+        margin-top: 0.55rem;
+    }
+
+    .sources-label {
+        font-size: 0.7rem;
+        color: #71717a;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        margin-bottom: 0.3rem;
+    }
+
+    .source-pill {
+        display: inline-block;
+        background: #f5f3ff;
+        border: 1px solid #ddd6fe;
+        color: #7c3aed;
+        font-size: 0.75rem;
+        padding: 0.22rem 0.55rem;
+        border-radius: 999px;
+        margin: 0.15rem 0.25rem 0.15rem 0;
+    }
+
+    # .input-shell {
+    #     margin-top: 1rem;
+    #     background: #fafafa;
+    #     border: 1px solid #e4e4e7;
+    #     border-radius: 18px;
+    #     padding: 1rem;
+    # }
+
+    .placeholder-card {
+        border: 1px dashed #d4d4d8;
+        background: #fafafa;
+        border-radius: 18px;
+        padding: 2rem 1.2rem;
+        color: #71717a;
+        text-align: center;
+    }
+
+    textarea {
+        border-radius: 14px !important;
+    }
+
+    div[data-baseweb="select"] > div {
+        border-radius: 14px !important;
+    }
+</style>
+""",
+    unsafe_allow_html=True,
+)
+
+# -----------------------------------------------------------------------
+# Logging capture helper
+# -----------------------------------------------------------------------
+class LogCapture(logging.Handler):
+    """Captures log records into a list for display in the UI."""
+
+    def __init__(self):
+        super().__init__()
+        self.records = []
+
+    def emit(self, record):
+        self.records.append(self.format(record))
+
+    def get_logs(self) -> str:
+        return "\n".join(self.records)
+
+
+def capture_logs() -> LogCapture:
+    handler = LogCapture()
+    handler.setFormatter(logging.Formatter("%(levelname)s  %(name)s — %(message)s"))
+    logging.getLogger().addHandler(handler)
+    return handler
+
+
+def release_logs(handler: LogCapture):
+    logging.getLogger().removeHandler(handler)
+
+
+# -----------------------------------------------------------------------
+# Session state init
+# -----------------------------------------------------------------------
+STEP_KEYS = [
+    "step1_extraction",
+    "step2_mapping",
+    "step3_nodes",
+    "step4_indexing",
+    "step5_kg",
+    "step6_retrievers",
+]
+
+
+def init_session_state():
+    defaults = {
+        "active_tab": "Chat",
+        "extraction_result_layer1": None,
+        "extraction_result_layer2": None,
+        "mapped_parts": None,
+        "part_nodes": None,
+        "row_nodes": None,
+        "all_nodes": None,
+        "basic_index": None,
+        "hybrid_index": None,
+        "property_graph_index": None,
+        "vector_retriever": None,
+        "hybrid_retriever": None,
+        "kg_retriever": None,
+        **{k: "idle" for k in STEP_KEYS},
+        **{f"{k}_log": "" for k in STEP_KEYS},
+        **{f"{k}_stat": "" for k in STEP_KEYS},
+        "chat_history": [],
+        "memory": ChatMemoryBuffer.from_defaults(token_limit=4096),
+        "retrieval_mode": "Hybrid + Metadata Filtering",
+        "use_reranker": False,
+        "reranker_model": "cross-encoder/ms-marco-MiniLM-L-2-v2",
+        "llm_choice": "DeepSeek (deepseek-chat)",
+        "embed_choice": "OpenAI (text-embedding-3-small)",
+        "models_initialized": False,
+        "uploaded_pdf_path": None,
+        "uploaded_pdf_name": None,
+        "pending_user_prompt": None,
+        "generate_response_now": False,
+    }
+    for k, v in defaults.items():
+        if k not in st.session_state:
+            st.session_state[k] = v
+
+
+init_session_state()
+
+# -----------------------------------------------------------------------
+# Model setup
+# -----------------------------------------------------------------------
+def setup_models():
+    llm_choice = st.session_state.llm_choice
+    embed_choice = st.session_state.embed_choice
+
+    if llm_choice == "DeepSeek (deepseek-chat)":
+        Settings.llm = DeepSeek(
+            model="deepseek-chat",
+            api_key=DEEPSEEK_KEY,
+            temperature=0.1,
+        )
+    elif llm_choice == "OpenAI (gpt-4o-mini)":
+        Settings.llm = OpenAI(
+            model="gpt-4o-mini",
+            api_key=OPENAI_KEY,
+            temperature=0.1,
+        )
+    elif llm_choice == "OpenAI (gpt-4o)":
+        Settings.llm = OpenAI(
+            model="gpt-4o",
+            api_key=OPENAI_KEY,
+            temperature=0.1,
+        )
+
+    if embed_choice == "OpenAI (text-embedding-3-small)":
+        Settings.embed_model = OpenAIEmbedding(
+            model="text-embedding-3-small",
+            api_key=OPENAI_KEY,
+        )
+    elif embed_choice == "OpenAI (text-embedding-3-large)":
+        Settings.embed_model = OpenAIEmbedding(
+            model="text-embedding-3-large",
+            api_key=OPENAI_KEY,
+        )
+
+
+if not st.session_state.models_initialized:
+    setup_models()
+    st.session_state.models_initialized = True
+
+# -----------------------------------------------------------------------
+# Pipeline steps
+# -----------------------------------------------------------------------
+def step_icon(status: str) -> str:
+    return {"idle": "○", "running": "◌", "done": "●", "error": "✕"}.get(status, "○")
+
+
+def step_css_class(status: str) -> str:
+    return {
+        "idle": "idle",
+        "running": "running",
+        "done": "done",
+        "error": "error",
+    }.get(status, "idle")
+
+def get_active_pdf_path() -> str:
+    return st.session_state.uploaded_pdf_path 
+
+def run_step1():
+    setup_models()
+    handler = capture_logs()
+    st.session_state.step1_extraction = "running"
+    try:
+        active_pdf_path = get_active_pdf_path()
+        r1 = asyncio.run(extract_layer1_fields(active_pdf_path, SYSTEM_PROMPT_L1, PartSchema))
+        r2 = asyncio.run(extract_layer2_fields(active_pdf_path, SYSTEM_PROMPT_L2, TableRowSchema))
+        # r1 = asyncio.run(extract_layer1_fields(PDF_PATH, SYSTEM_PROMPT_L1, PartSchema))
+        # r2 = asyncio.run(extract_layer2_fields(PDF_PATH, SYSTEM_PROMPT_L2, TableRowSchema))
+        st.session_state.extraction_result_layer1 = r1
+        st.session_state.extraction_result_layer2 = r2
+        st.session_state.step1_extraction = "done"
+        st.session_state.step1_extraction_stat = (
+            f"Layer 1: {len(r1.data)} record(s) · Layer 2: {len(r2.data)} row(s)"
+        )
+    except Exception as e:
+        st.session_state.step1_extraction = "error"
+        st.session_state.step1_extraction_stat = str(e)
+    finally:
+        release_logs(handler)
+        st.session_state.step1_extraction_log = handler.get_logs()
+
+
+def run_step2():
+    handler = capture_logs()
+    st.session_state.step2_mapping = "running"
+    try:
+        parts = attach_part_id_to_layer1_parts(st.session_state.extraction_result_layer1)
+        rows = attach_part_id_to_layer2_rows(st.session_state.extraction_result_layer2)
+        mapped = map_parts_and_rows(parts, rows)
+        log_mapping_diagnostics(mapped)
+        st.session_state.mapped_parts = mapped
+        st.session_state.step2_mapping = "done"
+        st.session_state.step2_mapping_stat = (
+            f"{len(mapped.parts)} part(s) joined · {mapped.orphaned_count} orphaned row(s)"
+        )
+    except Exception as e:
+        st.session_state.step2_mapping = "error"
+        st.session_state.step2_mapping_stat = str(e)
+    finally:
+        release_logs(handler)
+        st.session_state.step2_mapping_log = handler.get_logs()
+
+
+def run_step3():
+    handler = capture_logs()
+    st.session_state.step3_nodes = "running"
+    try:
+        part_nodes, row_nodes = build_retrieval_nodes(st.session_state.mapped_parts.parts)
+        st.session_state.part_nodes = part_nodes
+        st.session_state.row_nodes = row_nodes
+        st.session_state.all_nodes = part_nodes + row_nodes
+        st.session_state.step3_nodes = "done"
+        st.session_state.step3_nodes_stat = (
+            f"{len(part_nodes)} parent node(s) · {len(row_nodes)} child node(s)"
+        )
+    except Exception as e:
+        st.session_state.step3_nodes = "error"
+        st.session_state.step3_nodes_stat = str(e)
+    finally:
+        release_logs(handler)
+        st.session_state.step3_nodes_log = handler.get_logs()
+
+
+def run_step4():
+    handler = capture_logs()
+    st.session_state.step4_indexing = "running"
+    try:
+        basic_store = build_pgvector_store("basic")
+        hybrid_store = build_pgvector_store("hybrid")
+        basic_index = index_nodes_with_store(st.session_state.all_nodes, basic_store)
+        hybrid_index = index_nodes_with_store(st.session_state.all_nodes, hybrid_store)
+        st.session_state.basic_index = basic_index
+        st.session_state.hybrid_index = hybrid_index
+        st.session_state.step4_indexing = "done"
+        st.session_state.step4_indexing_stat = (
+            f"{len(st.session_state.all_nodes)} node(s) indexed into pgvector"
+        )
+    except Exception as e:
+        st.session_state.step4_indexing = "error"
+        st.session_state.step4_indexing_stat = str(e)
+    finally:
+        release_logs(handler)
+        st.session_state.step4_indexing_log = handler.get_logs()
+
+
+def run_step5():
+    handler = capture_logs()
+    st.session_state.step5_kg = "running"
+    try:
+        pg_index = get_or_build_property_graph_index(all_nodes=st.session_state.all_nodes)
+        st.session_state.property_graph_index = pg_index
+        st.session_state.step5_kg = "done"
+        st.session_state.step5_kg_stat = "Knowledge graph ready (Neo4j)"
+    except Exception as e:
+        st.session_state.step5_kg = "error"
+        st.session_state.step5_kg_stat = str(e)
+    finally:
+        release_logs(handler)
+        st.session_state.step5_kg_log = handler.get_logs()
+
+
+def run_step6():
+    handler = capture_logs()
+    st.session_state.step6_retrievers = "running"
+    try:
+        st.session_state.vector_retriever = build_basic_vector_retriever(
+            basic_index=st.session_state.basic_index
+        )
+        st.session_state.hybrid_retriever = build_basic_hybrid_retriever(
+            hybrid_index=st.session_state.hybrid_index
+        )
+        st.session_state.kg_retriever = build_kg_retriever(
+            property_graph_index=st.session_state.property_graph_index,
+            similarity_top_k=8,
+            path_depth=3,
+            include_text=True,
+        )
+        st.session_state.step6_retrievers = "done"
+        st.session_state.step6_retrievers_stat = "Vector · Hybrid · KG retrievers ready"
+    except Exception as e:
+        st.session_state.step6_retrievers = "error"
+        st.session_state.step6_retrievers_stat = str(e)
+    finally:
+        release_logs(handler)
+        st.session_state.step6_retrievers_log = handler.get_logs()
+
+
+STEPS = [
+    {
+        "key": "step1_extraction",
+        "label": "Step 1",
+        "name": "Two-Layer Extraction",
+        "run": run_step1,
+        "requires": None,
+    },
+    {
+        "key": "step2_mapping",
+        "label": "Step 2",
+        "name": "Layer Mapping & Join",
+        "run": run_step2,
+        "requires": "step1_extraction",
+    },
+    {
+        "key": "step3_nodes",
+        "label": "Step 3",
+        "name": "Node Construction",
+        "run": run_step3,
+        "requires": "step2_mapping",
+    },
+    {
+        "key": "step4_indexing",
+        "label": "Step 4",
+        "name": "pgvector Indexing",
+        "run": run_step4,
+        "requires": "step3_nodes",
+    },
+    {
+        "key": "step5_kg",
+        "label": "Step 5",
+        "name": "Knowledge Graph",
+        "run": run_step5,
+        "requires": "step3_nodes",
+    },
+    {
+        "key": "step6_retrievers",
+        "label": "Step 6",
+        "name": "Build Retrievers",
+        "run": run_step6,
+        "requires": "step4_indexing",
+    },
+]
+
+# -----------------------------------------------------------------------
+# Helpers
+# -----------------------------------------------------------------------
+def pipeline_ready() -> bool:
+    return st.session_state.step6_retrievers == "done"
+
+def clear_chat():
+    st.session_state.chat_history = []
+    st.session_state.memory = ChatMemoryBuffer.from_defaults(token_limit=4096)
+
+def reset_all():
+    for k in STEP_KEYS:
+        st.session_state[k] = "idle"
+        st.session_state[f"{k}_log"] = ""
+        st.session_state[f"{k}_stat"] = ""
+    st.session_state.extraction_result_layer1 = None
+    st.session_state.extraction_result_layer2 = None
+    st.session_state.mapped_parts = None
+    st.session_state.part_nodes = None
+    st.session_state.row_nodes = None
+    st.session_state.all_nodes = None
+    st.session_state.basic_index = None
+    st.session_state.hybrid_index = None
+    st.session_state.property_graph_index = None
+    st.session_state.vector_retriever = None
+    st.session_state.hybrid_retriever = None
+    st.session_state.kg_retriever = None
+    clear_chat()
+
+
+def switch_tab(tab_name: str):
+    st.session_state.active_tab = tab_name
+
+def extraction_result_to_df(result):
+    if result is None:
+        return None
+
+    data = getattr(result, "data", None)
+    if not data:
+        return None
+
+    rows = []
+    for item in data:
+        if hasattr(item, "model_dump"):
+            rows.append(item.model_dump())
+        elif hasattr(item, "dict"):
+            rows.append(item.dict())
+        elif isinstance(item, dict):
+            rows.append(item)
+        else:
+            rows.append(vars(item))
+
+    import pandas as pd
+    return pd.DataFrame(rows)
+
+def nodes_to_preview_df(nodes, max_text_length=160):
+    if not nodes:
+        return None
+
+    rows = []
+    for node in nodes:
+        metadata = getattr(node, "metadata", {}) or {}
+        text = ""
+
+        if hasattr(node, "get_content"):
+            try:
+                text = node.get_content()
+            except Exception:
+                text = getattr(node, "text", "")
+        else:
+            text = getattr(node, "text", "")
+
+        text = text or ""
+        text_preview = text[:max_text_length] + ("..." if len(text) > max_text_length else "")
+
+        rows.append({
+            "node_id": getattr(node, "node_id", ""),
+            "part_id": metadata.get("part_id", ""),
+            "node_type": metadata.get("node_type", ""),
+            "art_nr": metadata.get("art_nr", ""),
+            "page_number": metadata.get("page_number", ""),
+            "text_preview": text_preview,
+        })
+
+    import pandas as pd
+    return pd.DataFrame(rows)
+
+def build_step3_graph(part_nodes, row_nodes, max_children_per_parent=50):
+    nodes = []
+    edges = []
+    detail_map = {}
+
+    parent_ids_added = set()
+    child_ids_added = set()
+    child_count_by_parent = {}
+
+    # Parent nodes
+    for node in part_nodes or []:
+        metadata = getattr(node, "metadata", {}) or {}
+        node_id = getattr(node, "node_id", "")
+
+        label = metadata.get("part_id") or node_id
+        nodes.append(
+            Node(
+                id=node_id,
+                label=label,
+                size=28,
+                shape="box",
+            )
+        )
+        parent_ids_added.add(node_id)
+
+        text = ""
+        if hasattr(node, "get_content"):
+            try:
+                text = node.get_content()
+            except Exception:
+                text = getattr(node, "text", "")
+        else:
+            text = getattr(node, "text", "")
+
+        detail_map[node_id] = {
+            "node_id": node_id,
+            "part_id": metadata.get("part_id", ""),
+            "node_type": metadata.get("node_type", ""),
+            # "art_nr": metadata.get("art_nr", ""),
+            "page_number": metadata.get("page_number", ""),
+            "text_preview": (text[:300] + "...") if len(text) > 300 else text,
+        }
+
+    # Child nodes + edges
+    for node in row_nodes or []:
+        metadata = getattr(node, "metadata", {}) or {}
+        child_id = getattr(node, "node_id", "")
+        part_id = metadata.get("part_id", "")
+        node_type = metadata.get("node_type", "child")
+
+        parent_node_id = None
+        for pnode in part_nodes or []:
+            pmeta = getattr(pnode, "metadata", {}) or {}
+            if pmeta.get("part_id", "") == part_id:
+                parent_node_id = getattr(pnode, "node_id", "")
+                break
+
+        if not parent_node_id or parent_node_id not in parent_ids_added:
+            continue
+
+        child_count_by_parent[parent_node_id] = child_count_by_parent.get(parent_node_id, 0) + 1
+        if child_count_by_parent[parent_node_id] > max_children_per_parent:
+            continue
+
+        child_label = child_id.split("::")[-1] if "::" in child_id else child_id
+        nodes.append(
+            Node(
+                id=child_id,
+                label=child_label,
+                # shape="dot",
+                shape="ellipse",
+                # shape="box",
+                size=max(18, min(35, 8 + len(child_label))),
+            )
+        )
+        child_ids_added.add(child_id)
+
+        edges.append(
+            Edge(
+                source=parent_node_id,
+                target=child_id,
+            )
+        )
+
+        text = ""
+        if hasattr(node, "get_content"):
+            try:
+                text = node.get_content()
+            except Exception:
+                text = getattr(node, "text", "")
+        else:
+            text = getattr(node, "text", "")
+
+        detail_map[child_id] = {
+            "node_id": child_id,
+            "part_id": metadata.get("part_id", ""),
+            "node_type": metadata.get("node_type", ""),
+            "art_nr": metadata.get("art_nr", ""),
+            "page_number": metadata.get("page_number", ""),
+            "text_preview": (text[:300] + "...") if len(text) > 300 else text,
+        }
+
+    config = Config(
+        width="100%",
+        height=520,
+        directed=False,
+        physics=True,
+        hierarchical=False,
+        nodeHighlightBehavior=True,
+        highlightColor="#ddd6fe",
+        collapsible=False,
+    )
+
+    return nodes, edges, config, detail_map
+
+def mapped_parts_to_preview(mapped_parts):
+    if mapped_parts is None or not hasattr(mapped_parts, "parts"):
+        return []
+
+    preview_items = []
+
+    for part_key, part in mapped_parts.parts.items():
+        if hasattr(part, "model_dump"):
+            part_dict = part.model_dump()
+        elif hasattr(part, "dict"):
+            part_dict = part.dict()
+        else:
+            part_dict = {
+                "part_id": getattr(part, "part_id", part_key),
+                "page_number": getattr(part, "page_number", None),
+                "dimension_rows": [
+                    row.model_dump() if hasattr(row, "model_dump")
+                    else row.dict() if hasattr(row, "dict")
+                    else vars(row)
+                    for row in getattr(part, "dimension_rows", [])
+                ],
+            }
+
+        rows = part_dict.get("dimension_rows", []) or []
+
+        parent_summary = {
+            k: v for k, v in part_dict.items()
+            if k != "dimension_rows"
+        }
+
+        preview_items.append(
+            {
+                "part_id": parent_summary.get("part_id", part_key),
+                "parent_summary": parent_summary,
+                "rows": rows,
+            }
+        )
+
+    return preview_items
+
+
+# -----------------------------------------------------------------------
+# Source formatting
+# -----------------------------------------------------------------------
+def format_sources(nodes) -> str:
+    seen, pills = set(), []
+    for node in nodes:
+        meta = node.node.metadata
+        page = meta.get("page_number")
+        art_nr = meta.get("art_nr")
+        part_id = meta.get("part_id", "")
+        node_type = meta.get("node_type", "")
+
+        label = ""
+        if art_nr and art_nr not in seen:
+            label = f"Art.{art_nr}"
+            seen.add(art_nr)
+        elif part_id and part_id not in seen:
+            label = part_id.replace("_", " ")
+            seen.add(part_id)
+
+        if label:
+            page_str = f" · p.{page}" if page else ""
+            pills.append(
+                f'<span class="source-pill">{label}{page_str} [{node_type}]</span>'
+            )
+    return "".join(pills)
+
+
+# -----------------------------------------------------------------------
+# Query with memory
+# -----------------------------------------------------------------------
+def run_query_with_memory(user_query: str) -> tuple[str, str]:
+    mode = st.session_state.retrieval_mode
+
+    if mode == "Vector Only":
+        retriever = build_basic_vector_retriever(basic_index=st.session_state.basic_index)
+    elif mode == "Hybrid Only":
+        retriever = build_basic_hybrid_retriever(hybrid_index=st.session_state.hybrid_index)
+    elif mode == "Hybrid + Metadata Filtering":
+        intent = extract_query_intent(user_query, Settings.llm)
+        retriever = build_filtered_retriever(
+            intent=intent,
+            basic_index=st.session_state.basic_index,
+            hybrid_index=st.session_state.hybrid_index,
+            use_hybrid=True,
+        )
+    else:
+        retriever = build_custom_retriever(
+            query=user_query,
+            basic_index=st.session_state.basic_index,
+            hybrid_index=st.session_state.hybrid_index,
+            kg_retriever=st.session_state.kg_retriever,
+        )
+
+    node_postprocessors = []
+    if st.session_state.use_reranker:
+        try:
+            reranker = SentenceTransformerRerank(
+                model=st.session_state.reranker_model,
+                top_n=5,
+            )
+            node_postprocessors.append(reranker)
+        except Exception as e:
+            logging.warning(f"Reranker unavailable: {e}")
+
+    chat_engine = CondensePlusContextChatEngine.from_defaults(
+        retriever=retriever,
+        memory=st.session_state.memory,
+        llm=Settings.llm,
+        node_postprocessors=node_postprocessors,
+        context_prompt=(
+            "You are an expert in mechanical gear catalogs.\n"
+            "Answer using only the catalog data provided below.\n"
+            "If the answer is not in the context, say so explicitly.\n\n"
+            "Context:\n{context_str}\n\nChat history:\n{chat_history}"
+        ),
+    )
+
+    response = chat_engine.chat(user_query)
+    source_nodes = response.source_nodes if hasattr(response, "source_nodes") else []
+    return str(response), format_sources(source_nodes)
+
+
+# -----------------------------------------------------------------------
+# Top navbar
+# -----------------------------------------------------------------------
+nav_left, nav_right = st.columns([4, 5])
+
+with nav_left:
+    st.markdown(
+        """
+        <div class="top-nav-shell">
+            <div class="brand-wrap">
+                <div class="brand-icon">⚙</div>
+                <div>
+                    <div class="brand-title">Mechanical Part AI-Assistant</div>
+                    <div class="brand-subtitle">RAG-powered catalog assistant for engineering workflows</div>
+                </div>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+with nav_right:
+    c1, c2, c3, c4 = st.columns(4)
+    with c1:
+        if st.button("Chat", use_container_width=True):
+            switch_tab("Chat")
+    with c2:
+        if st.button("Settings", use_container_width=True):
+            switch_tab("Settings")
+    with c3:
+        if st.button("Pipeline", use_container_width=True):
+            switch_tab("Pipeline")
+    with c4:
+        if st.button("Evaluation", use_container_width=True):
+            switch_tab("Evaluation")
+
+st.markdown(
+    f'<div class="active-pill">Current tab: {st.session_state.active_tab}</div>',
+    unsafe_allow_html=True,
+)
+
+# -----------------------------------------------------------------------
+# CHAT TAB
+# -----------------------------------------------------------------------
+
+# -----------------------------------------------------------------------
+# CHAT TAB
+# -----------------------------------------------------------------------
+if st.session_state.active_tab == "Chat":
+    left_col, right_col = st.columns([3.8, 1.3], gap="large")
+
+    with left_col:
+        st.markdown('<div class="section-title">Chat with your assistant</div>', unsafe_allow_html=True)
+        st.markdown(
+            '<div class="section-subtitle">Ask about spur gears, bevel gears, dimensions, materials, torque, or article numbers.</div>',
+            unsafe_allow_html=True,
+        )
+
+        if pipeline_ready():
+            mode_text = st.session_state.retrieval_mode
+            if st.session_state.use_reranker:
+                mode_text += " · Reranker On"
+            st.markdown(
+                f'<div class="mode-badge">{mode_text}</div>',
+                unsafe_allow_html=True,
+            )
+
+        with st.container(border=True):
+            if not pipeline_ready() and not st.session_state.chat_history:
+                st.markdown(
+                    """
+                    <div class="placeholder-card">
+                        <div style="font-size:2.2rem; margin-bottom:0.8rem;">⚙️</div>
+                        Run the pipeline steps in the <b>Pipeline</b> tab to activate chat.
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+            else:
+                for msg in st.session_state.chat_history:
+                    role = msg["role"]
+                    content = msg["content"]
+                    sources_html = msg.get("sources_html", "")
+
+                    if role == "user":
+                        st.markdown(
+                            f"""
+                            <div class="msg-row user">
+                                <div>
+                                    <div class="msg-meta" style="text-align:right;">You</div>
+                                    <div class="msg-bubble user">{content}</div>
+                                </div>
+                            </div>
+                            """,
+                            unsafe_allow_html=True,
+                        )
+                    else:
+                        sources_block = ""
+                        if sources_html:
+                            sources_block = (
+                                f'<div class="sources-wrap">'
+                                f'<div class="sources-label">Sources</div>'
+                                f'<div>{sources_html}</div>'
+                                f'</div>'
+                            )
+
+                        assistant_html = (
+                            f'<div class="msg-row assistant">'
+                            f'<div>'
+                            f'<div class="msg-meta">AI Assistant</div>'
+                            f'<div class="msg-bubble assistant">{content}{sources_block}</div>'
+                            f'</div>'
+                            f'</div>'
+                        )
+
+                        st.markdown(assistant_html, unsafe_allow_html=True)
+
+            if st.session_state.generate_response_now and st.session_state.pending_user_prompt:
+                with st.spinner("Thinking..."):
+                    try:
+                        response_text, sources_html = run_query_with_memory(
+                            st.session_state.pending_user_prompt
+                        )
+                    except Exception as e:
+                        response_text = f"⚠️ Retrieval error: {e}"
+                        sources_html = ""
+                        logging.error(f"Query failed: {e}")
+
+                st.session_state.chat_history.append(
+                    {
+                        "role": "assistant",
+                        "content": response_text,
+                        "sources_html": sources_html,
+                    }
+                )
+                st.session_state.pending_user_prompt = None
+                st.session_state.generate_response_now = False
+                st.rerun()
+
+        with st.container(border=True):
+            with st.form("chat_form", clear_on_submit=True):
+                user_prompt = st.text_area(
+                    "Message",
+                    placeholder="e.g. Find steel spur gears with module 1.0 and torque > 200 Ncm",
+                    height=110,
+                    label_visibility="collapsed",
+                    disabled=not pipeline_ready(),
+                )
+
+                b1, b2, b3 = st.columns([1.2, 1.2, 6])
+
+                with b1:
+                    send_clicked = st.form_submit_button("Send", use_container_width=True)
+                with b2:
+                    clear_clicked = st.form_submit_button("Clear Chat", use_container_width=True)
+
+        if clear_clicked:
+            clear_chat()
+            st.session_state.pending_user_prompt = None
+            st.session_state.generate_response_now = False
+            st.rerun()
+
+        if send_clicked and user_prompt.strip():
+            st.session_state.chat_history.append(
+                {"role": "user", "content": user_prompt.strip()}
+            )
+            st.session_state.pending_user_prompt = user_prompt.strip()
+            st.session_state.generate_response_now = True
+            st.rerun()
+
+    with right_col:
+        st.markdown('<div class="section-title">Retrieval configuration</div>', unsafe_allow_html=True)
+        st.markdown('<div class="section-subtitle">Adjust retrieval behavior directly from chat.</div>', unsafe_allow_html=True)
+
+        with st.container(border=True):
+            retrieval_options = [
+                "Vector Only",
+                "Hybrid Only",
+                "Hybrid + Metadata Filtering",
+                "KG + Hybrid + Metadata Filtering",
+            ]
+
+            st.session_state.retrieval_mode = st.selectbox(
+                "Retrieval Mode",
+                retrieval_options,
+                index=retrieval_options.index(st.session_state.retrieval_mode),
+                disabled=not pipeline_ready(),
+            )
+
+            st.session_state.use_reranker = st.toggle(
+                "Enable reranker model",
+                value=st.session_state.use_reranker,
+                disabled=not pipeline_ready(),
+            )
+
+            if not pipeline_ready():
+                st.caption("Available after pipeline setup.")
+
+            st.markdown("<div style='height:0.9rem;'></div>", unsafe_allow_html=True)
+            st.markdown('<div class="section-title">Quick status</div>', unsafe_allow_html=True)
+            st.markdown('<div class="section-subtitle">Current app and pipeline state.</div>', unsafe_allow_html=True)
+
+        with st.container(border=True):
+            st.markdown(
+                f"""
+                <div style="font-size:0.9rem; color:#71717a; margin-bottom:0.5rem;">Pipeline</div>
+                <div style="font-size:1.2rem; font-weight:700; color:#18181b; margin-bottom:1rem;">
+                    {"Ready" if pipeline_ready() else "Not ready"}
+                </div>
+
+                <div style="font-size:0.9rem; color:#71717a; margin-bottom:0.3rem;">LLM</div>
+                <div style="font-weight:600; color:#18181b; margin-bottom:0.8rem;">{st.session_state.llm_choice}</div>
+
+                <div style="font-size:0.9rem; color:#71717a; margin-bottom:0.3rem;">Embeddings</div>
+                <div style="font-weight:600; color:#18181b; margin-bottom:0.8rem;">{st.session_state.embed_choice}</div>
+
+                <div style="font-size:0.9rem; color:#71717a; margin-bottom:0.3rem;">Reranker model</div>
+                <div style="font-weight:600; color:#18181b; margin-bottom:0.8rem;">
+                    {st.session_state.reranker_model if st.session_state.use_reranker else "Disabled"}
+                </div>
+
+                <div style="font-size:0.9rem; color:#71717a; margin-bottom:0.3rem;">Messages</div>
+                <div style="font-weight:600; color:#18181b;">{len(st.session_state.chat_history)}</div>
+                """,
+                unsafe_allow_html=True,
+            )
+
+            st.markdown("<div style='height:0.9rem;'></div>", unsafe_allow_html=True)
+
+        with st.container(border=True):
+            st.markdown(
+                """
+                <div style="font-size:1rem; font-weight:700; color:#18181b; margin-bottom:0.5rem;">How to use</div>
+                <div style="color:#71717a; font-size:0.92rem; line-height:1.6;">
+                    1. Open the <b>Settings</b> tab and configure model options.<br>
+                    2. Go to <b>Pipeline</b> tab and run all six steps.<br>
+                    3. Adjust retrieval options on the <b>Chat</b> page.<br>
+                    4. Ask the AI-Assistant .
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
+# -----------------------------------------------------------------------
+# SETTINGS TAB
+# -----------------------------------------------------------------------
+elif st.session_state.active_tab == "Settings":
+    st.markdown('<div class="section-title">Settings</div>', unsafe_allow_html=True)
+    st.markdown(
+        '<div class="section-subtitle">Configure models and session controls.</div>', unsafe_allow_html=True,
+    )
+
+    s1, s2 = st.columns(2, gap="large")
+
+    with s1:
+        with st.container(border=True):
+            st.markdown('<div class="section-title">Model configuration</div>', unsafe_allow_html=True)
+            # st.markdown('<div class="section-subtitle">Choose your LLM and embedding model.</div>', unsafe_allow_html=True)
+            st.markdown('<div class="section-subtitle">Choose your LLM, embedding model, and reranker model.</div>', unsafe_allow_html=True)
+            
+            llm_choice = st.selectbox(
+                "Language Model",
+                ["DeepSeek (deepseek-chat)", "OpenAI (gpt-4o-mini)", "OpenAI (gpt-4o)"],
+                index=["DeepSeek (deepseek-chat)", "OpenAI (gpt-4o-mini)", "OpenAI (gpt-4o)"].index(
+                    st.session_state.llm_choice
+                ),
+            )
+            if llm_choice != st.session_state.llm_choice:
+                st.session_state.llm_choice = llm_choice
+                setup_models()
+
+            embed_choice = st.selectbox(
+                "Embedding Model",
+                ["OpenAI (text-embedding-3-small)", "OpenAI (text-embedding-3-large)"],
+                index=["OpenAI (text-embedding-3-small)", "OpenAI (text-embedding-3-large)"].index(
+                    st.session_state.embed_choice
+                ),
+            )
+            if embed_choice != st.session_state.embed_choice:
+                st.session_state.embed_choice = embed_choice
+                setup_models()
+
+            reranker_model = st.selectbox(
+                "Reranker Model",
+                ["cross-encoder/ms-marco-MiniLM-L-2-v2"],
+                index=["cross-encoder/ms-marco-MiniLM-L-2-v2"].index(st.session_state.reranker_model),
+            )
+
+            if reranker_model != st.session_state.reranker_model:
+                st.session_state.reranker_model = reranker_model
+
+            # st.markdown("</div>", unsafe_allow_html=True)
+
+# -----------------------------------------------------------------------
+# PIPELINE TAB
+# -----------------------------------------------------------------------
+elif st.session_state.active_tab == "Pipeline":
+    st.markdown('<div class="section-title">Pipeline</div>', unsafe_allow_html=True)
+    st.markdown(
+        '<div class="section-subtitle">Run the extraction, indexing, graph, and retriever build steps for your RAG pipeline.</div>',
+        unsafe_allow_html=True,
+    )
+
+    p1, p2 = st.columns([3.4, 1.2], gap="large")
+
+    with p1:
+        for step in STEPS:
+            key = step["key"]
+            status = st.session_state[key]
+            stat = st.session_state.get(f"{key}_stat", "")
+            log = st.session_state.get(f"{key}_log", "")
+            req = step["requires"]
+
+            blocked = bool(req and st.session_state[req] != "done")
+
+            if key == "step6_retrievers":
+                blocked = bool(
+                    st.session_state["step4_indexing"] != "done"
+                    or st.session_state["step5_kg"] != "done"
+                )
+
+            css = step_css_class(status)
+            icon = step_icon(status)
+
+            st.markdown(
+                f"""
+                <div class="step-card {css}">
+                    <div class="step-label">{icon} {step['label']}</div>
+                    <div class="step-name">{step['name']}</div>
+                    {"<div class='step-stat'>" + stat + "</div>" if stat else ""}
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
+            c1, c2, c3 = st.columns([1.2, 1, 4])
+
+            with c1:
+                btn_label = "Run" if status == "idle" else ("Re-run" if status == "done" else "Retry")
+                if st.button(btn_label, key=f"btn_{key}", use_container_width=True, disabled=blocked):
+                    with st.spinner(f"Running {step['name']}..."):
+                        step["run"]()
+                    st.rerun()
+
+            with c2:
+                if log:
+                    st.toggle("Logs", key=f"log_toggle_{key}", value=False)
+
+            if log and st.session_state.get(f"log_toggle_{key}", False):
+                st.markdown(f'<div class="log-box">{log}</div>', unsafe_allow_html=True)
+
+            if key == "step1_extraction" and st.session_state.step1_extraction == "done":
+                with st.expander("Show extraction results", expanded=False):
+                    layer1_df = extraction_result_to_df(st.session_state.extraction_result_layer1)
+                    layer2_df = extraction_result_to_df(st.session_state.extraction_result_layer2)
+
+                    tab1, tab2 = st.tabs(["Layer 1", "Layer 2"])
+
+                    with tab1:
+                        if layer1_df is not None and not layer1_df.empty:
+                            st.caption(f"{len(layer1_df)} extracted parent record(s)")
+                            st.dataframe(layer1_df, use_container_width=True)
+                        else:
+                            st.info("No Layer 1 extraction results available.")
+
+                    with tab2:
+                        if layer2_df is not None and not layer2_df.empty:
+                            st.caption(f"{len(layer2_df)} extracted row record(s)")
+                            st.dataframe(layer2_df, use_container_width=True)
+                        else:
+                            st.info("No Layer 2 extraction results available.")
+
+            if key == "step2_mapping" and st.session_state.step2_mapping == "done":
+                with st.expander("Show mapped parts and attached rows", expanded=False):
+                    preview_items = mapped_parts_to_preview(st.session_state.mapped_parts)
+
+                    if not preview_items:
+                        st.info("No mapped parts available.")
+                    else:
+                        st.caption(f"{len(preview_items)} mapped part(s)")
+
+                        for item in preview_items:
+                            part_id = item["part_id"]
+                            parent_summary = item["parent_summary"]
+                            rows = item["rows"]
+
+                            with st.container(border=True):
+                                st.markdown(f"### {part_id}")
+
+                                st.markdown("**Parent info**")
+                                # st.json(parent_summary)
+                                import pandas as pd
+                                st.dataframe(pd.DataFrame([parent_summary]), use_container_width=True)
+
+                                st.markdown("**Attached rows**")
+                                if rows:
+                                    import pandas as pd
+                                    st.dataframe(pd.DataFrame(rows), use_container_width=True)
+                                else:
+                                    st.info("No rows attached to this parent.")   
+
+            if key == "step3_nodes" and st.session_state.step3_nodes == "done":
+                with st.expander("Show node graph", expanded=False):
+                    graph_nodes, graph_edges, graph_config, graph_detail_map = build_step3_graph(
+                        st.session_state.part_nodes,
+                        st.session_state.row_nodes,
+                        max_children_per_parent=50,
+                    )
+
+                    selected_node_id = agraph(
+                        nodes=graph_nodes,
+                        edges=graph_edges,
+                        config=graph_config,
+                    )
+
+                    if selected_node_id:
+                        details = graph_detail_map.get(selected_node_id, {})
+                        st.markdown("### Selected node details")
+                        # st.json(details)
+                        details_md = f"""
+                        **node_id:** {details.get("node_id", "")}  
+                        **part_id:** {details.get("part_id", "")}  
+                        **node_type:** {details.get("node_type", "")}  
+                        **page_number:** {details.get("page_number", "")}  
+                        """
+
+                        if details.get("node_type") != "part" and "art_nr" in details:
+                            details_md += f"**art_nr:** {details.get('art_nr', '')}  \n"
+
+                        details_md += f"""
+                        **text_preview:**  
+                        {details.get("text_preview", "")}
+                        """
+
+                        st.markdown(details_md)
+                    else:
+                        st.info("Click a node in the graph to view its details.")
+
+            if key == "step6_retrievers" and st.session_state.step6_retrievers == "done":
+                with st.expander("Show retriever status", expanded=False):
+                    vector_ready = st.session_state.vector_retriever is not None
+                    hybrid_ready = st.session_state.hybrid_retriever is not None
+                    kg_ready = st.session_state.kg_retriever is not None
+
+                    c1, c2, c3 = st.columns(3)
+
+                    with c1:
+                        st.markdown(
+                            f"""
+                            <div style="
+                                border:1px solid #e4e4e7;
+                                border-radius:16px;
+                                padding:1rem;
+                                background:#ffffff;
+                            ">
+                                <div style="font-size:0.82rem; color:#71717a; margin-bottom:0.35rem;">Vector retriever</div>
+                                <div style="font-size:1rem; font-weight:700; color:{'#16a34a' if vector_ready else '#dc2626'};">
+                                    {'Ready' if vector_ready else 'Not ready'}
+                                </div>
+                            </div>
+                            """,
+                            unsafe_allow_html=True,
+                        )
+
+                    with c2:
+                        st.markdown(
+                            f"""
+                            <div style="
+                                border:1px solid #e4e4e7;
+                                border-radius:16px;
+                                padding:1rem;
+                                background:#ffffff;
+                            ">
+                                <div style="font-size:0.82rem; color:#71717a; margin-bottom:0.35rem;">Hybrid retriever</div>
+                                <div style="font-size:1rem; font-weight:700; color:{'#16a34a' if hybrid_ready else '#dc2626'};">
+                                    {'Ready' if hybrid_ready else 'Not ready'}
+                                </div>
+                            </div>
+                            """,
+                            unsafe_allow_html=True,
+                        )
+
+                    with c3:
+                        st.markdown(
+                            f"""
+                            <div style="
+                                border:1px solid #e4e4e7;
+                                border-radius:16px;
+                                padding:1rem;
+                                background:#ffffff;
+                            ">
+                                <div style="font-size:0.82rem; color:#71717a; margin-bottom:0.35rem;">KG retriever</div>
+                                <div style="font-size:1rem; font-weight:700; color:{'#16a34a' if kg_ready else '#dc2626'};">
+                                    {'Ready' if kg_ready else 'Not ready'}
+                                </div>
+                            </div>
+                            """,
+                            unsafe_allow_html=True,
+                        )
+
+            st.markdown("<div style='height:0.35rem;'></div>", unsafe_allow_html=True)
+
+    with p2:
+        with st.container(border=True):
+            uploaded_pdf = st.file_uploader(
+                "Upload PDF source",
+                type=["pdf"],
+                accept_multiple_files=False,
+            )
+
+            if uploaded_pdf is not None:
+                import tempfile
+
+                with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_file:
+                    tmp_file.write(uploaded_pdf.read())
+                    st.session_state.uploaded_pdf_path = tmp_file.name
+                    st.session_state.uploaded_pdf_name = uploaded_pdf.name
+
+            st.markdown(
+                f"""
+                <div style="font-size:1rem; font-weight:700; color:#18181b; margin-bottom:0.7rem;">Pipeline status</div>
+
+                <div style="font-size:0.9rem; color:#71717a; margin-bottom:0.25rem;">PDF source</div>
+                <div style="font-weight:600; color:#18181b; margin-bottom:0.8rem;">
+                    {st.session_state.uploaded_pdf_name}
+                </div>
+
+                <div style="font-size:0.9rem; color:#71717a; margin-bottom:0.25rem;">Ready for chat</div>
+                <div style="font-weight:600; color:#18181b; margin-bottom:0.8rem;">{"Yes" if pipeline_ready() else "No"}</div>
+
+                <div style="font-size:0.9rem; color:#71717a; margin-bottom:0.25rem;">Completed steps</div>
+                <div style="font-weight:600; color:#18181b;">{sum(st.session_state[k] == "done" for k in STEP_KEYS)} / {len(STEP_KEYS)}</div>
+                """,
+                unsafe_allow_html=True,
+            )
+
+            st.markdown("<div style='height:0.8rem;'></div>", unsafe_allow_html=True)
+
+            if st.button("Reset All Pipeline State", use_container_width=True):
+                reset_all()
+                st.rerun()
+
+            # st.markdown("</div>", unsafe_allow_html=True)
+
+# -----------------------------------------------------------------------
+# EVALUATION TAB
+# -----------------------------------------------------------------------
+elif st.session_state.active_tab == "Evaluation":
+    st.markdown('<div class="section-title">Evaluation</div>', unsafe_allow_html=True)
+    st.markdown(
+        '<div class="section-subtitle">This tab is reserved for benchmark questions, retrieval metrics, and answer quality analysis.</div>',
+        unsafe_allow_html=True,
+    )
+
+    st.markdown(
+        """
+        <div class="placeholder-card">
+            Evaluation UI placeholder.<br><br>
+            Later, we can add:
+            <br>• test question sets
+            <br>• retrieved context inspection
+            <br>• answer comparison
+            <br>• latency / accuracy metrics
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )

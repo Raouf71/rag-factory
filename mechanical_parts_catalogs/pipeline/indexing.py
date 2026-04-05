@@ -14,11 +14,11 @@ from config.settings import EMBED_DIM
 load_dotenv()
 logger = logging.getLogger(__name__)
 
-DB_NAME    = os.getenv("POSTGRES_DB_NAME")
+DB_NAME    = os.getenv("POSTGRES_DB")
 DB_HOST    = os.getenv("POSTGRES_HOST", "localhost")
 DB_PORT    = int(os.getenv("POSTGRES_PORT", 5432))
 DB_USER    = os.getenv("POSTGRES_USER", "postgres")
-DB_PASS    = os.getenv("POSTGRES_PW")
+DB_PASS    = os.getenv("POSTGRES_PASSWORD")
 
 TABLE_NAME_BASIC = "prod_mechanical_parts_vector"
 TABLE_NAME_HYBRID = "prod_mechanical_parts_hybrid"
