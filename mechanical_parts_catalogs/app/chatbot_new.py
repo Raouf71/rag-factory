@@ -337,8 +337,30 @@ st.markdown(
     }
 
     div[data-baseweb="select"] > div {
-        border-radius: 14px !important;
+            border-radius: 14px !important;
+        }
+
+        div[data-testid="stExpander"] details summary p {
+        display: inline-block;
+        background: #4e524e;
+        border: 1px solid #2d4a2d;
+        color: #6abf6a;
+        font-size: 0.85rem;
+        padding: 2px 10px;
+        border-radius: 999px;
+        margin: 0;
+        font-weight: 600;
     }
+
+    div[data-testid="stExpander"] details summary {
+        padding-top: 0.15rem;
+        padding-bottom: 0.15rem;
+    }
+
+    div[data-testid="stExpander"] details summary p:empty {
+        display: none;
+    }
+
 </style>
 """,
     unsafe_allow_html=True,
@@ -415,6 +437,8 @@ def init_session_state():
         "uploaded_pdf_name": None,
         "pending_user_prompt": None,
         "generate_response_now": False,
+        "retrieval_top_k": 5,
+        "rerank_top_k": 5,
     }
     for k, v in defaults.items():
         if k not in st.session_state:
@@ -927,17 +951,108 @@ def format_sources(nodes) -> str:
             )
     return "".join(pills)
 
+def build_sources_data_old(nodes) -> list[dict]:
+    sources = []
+    seen = set()
 
+    for node in nodes:
+        meta = node.node.metadata
+        page = meta.get("page_number")
+        art_nr = meta.get("art_nr")
+        part_id = meta.get("part_id", "")
+        node_type = meta.get("node_type", "")
+
+        label = ""
+        if art_nr:
+            label = f"Art.{art_nr}"
+        elif part_id:
+            label = part_id.replace("_", " ")
+        else:
+            label = "Unknown source"
+
+        text_content = ""
+        try:
+            text_content = node.node.get_content()
+        except Exception:
+            text_content = getattr(node.node, "text", "")
+
+        unique_key = (label, page, node_type, text_content)
+        if unique_key in seen:
+            continue
+        seen.add(unique_key)
+
+        sources.append(
+            {
+                "label": label,
+                "page_number": page,
+                "node_type": node_type,
+                "content": text_content,
+            }
+        )
+
+    return sources
+
+def build_sources_data(nodes) -> list[dict]:
+    sources = []
+    seen = set()
+
+    for source_node in nodes:
+        meta = source_node.node.metadata or {}
+
+        node_type = meta.get("node_type", "unknown")
+        page_number = meta.get("page_number")
+        score = getattr(source_node, "score", None)
+
+        content = ""
+        try:
+            content = source_node.node.get_content()
+        except Exception:
+            pass
+
+        if not content:
+            content = getattr(source_node.node, "text", "")
+
+        if not content:
+            content = getattr(source_node, "text", "")
+
+        if not content:
+            content = str(source_node.node)
+
+        unique_key = (node_type, page_number, score, content)
+        if unique_key in seen:
+            continue
+        seen.add(unique_key)
+
+        sources.append(
+            {
+                "node_type": node_type,
+                "page_number": page_number,
+                "score": score,
+                "content": content,
+            }
+        )
+
+    return sources
 # -----------------------------------------------------------------------
 # Query with memory
 # -----------------------------------------------------------------------
 def run_query_with_memory(user_query: str) -> tuple[str, str]:
     mode = st.session_state.retrieval_mode
+    top_k = st.session_state.retrieval_top_k
+
 
     if mode == "Vector Only":
-        retriever = build_basic_vector_retriever(basic_index=st.session_state.basic_index)
+        # retriever = build_basic_vector_retriever(basic_index=st.session_state.basic_index)
+        retriever = build_basic_vector_retriever(
+            basic_index=st.session_state.basic_index,
+            similarity_top_k=top_k,
+        )
     elif mode == "Hybrid Only":
-        retriever = build_basic_hybrid_retriever(hybrid_index=st.session_state.hybrid_index)
+        # retriever = build_basic_hybrid_retriever(hybrid_index=st.session_state.hybrid_index)
+        retriever = build_basic_hybrid_retriever(
+            hybrid_index=st.session_state.hybrid_index,
+            similarity_top_k=top_k,
+        )
     elif mode == "Hybrid + Metadata Filtering":
         intent = extract_query_intent(user_query, Settings.llm)
         retriever = build_filtered_retriever(
@@ -959,7 +1074,8 @@ def run_query_with_memory(user_query: str) -> tuple[str, str]:
         try:
             reranker = SentenceTransformerRerank(
                 model=st.session_state.reranker_model,
-                top_n=5,
+                top_n=st.session_state.rerank_top_k,
+                # top_n=5,
             )
             node_postprocessors.append(reranker)
         except Exception as e:
@@ -980,8 +1096,13 @@ def run_query_with_memory(user_query: str) -> tuple[str, str]:
 
     response = chat_engine.chat(user_query)
     source_nodes = response.source_nodes if hasattr(response, "source_nodes") else []
-    return str(response), format_sources(source_nodes)
+    # return str(response), format_sources(source_nodes)
 
+    sources_html = format_sources(source_nodes)
+    sources_data = build_sources_data(source_nodes)
+
+    
+    return str(response), sources_html, sources_data
 
 # -----------------------------------------------------------------------
 # Top navbar
@@ -1027,10 +1148,6 @@ st.markdown(
 # -----------------------------------------------------------------------
 # CHAT TAB
 # -----------------------------------------------------------------------
-
-# -----------------------------------------------------------------------
-# CHAT TAB
-# -----------------------------------------------------------------------
 if st.session_state.active_tab == "Chat":
     left_col, right_col = st.columns([3.8, 1.3], gap="large")
 
@@ -1050,7 +1167,8 @@ if st.session_state.active_tab == "Chat":
                 unsafe_allow_html=True,
             )
 
-        with st.container(border=True):
+     
+        with st.container(border=True, height=500):
             if not pipeline_ready() and not st.session_state.chat_history:
                 st.markdown(
                     """
@@ -1066,6 +1184,7 @@ if st.session_state.active_tab == "Chat":
                     role = msg["role"]
                     content = msg["content"]
                     sources_html = msg.get("sources_html", "")
+                    sources_data = msg.get("sources_data", [])
 
                     if role == "user":
                         st.markdown(
@@ -1080,42 +1199,77 @@ if st.session_state.active_tab == "Chat":
                             unsafe_allow_html=True,
                         )
                     else:
-                        sources_block = ""
-                        if sources_html:
-                            sources_block = (
-                                f'<div class="sources-wrap">'
-                                f'<div class="sources-label">Sources</div>'
-                                f'<div>{sources_html}</div>'
-                                f'</div>'
-                            )
-
                         assistant_html = (
                             f'<div class="msg-row assistant">'
-                            f'<div>'
+                            f'<div style="width:100%;">'
                             f'<div class="msg-meta">AI Assistant</div>'
-                            f'<div class="msg-bubble assistant">{content}{sources_block}</div>'
+                            f'<div class="msg-bubble assistant">{content}</div>'
                             f'</div>'
                             f'</div>'
                         )
 
                         st.markdown(assistant_html, unsafe_allow_html=True)
 
+                        if sources_data:
+                            st.markdown(
+                                '<div class="sources-label" style="margin:0.5rem 0 0.35rem 0;">Sources</div>',
+                                unsafe_allow_html=True,
+                            )
+
+                            for source in sources_data:
+                                node_type = source.get("node_type", "unknown")
+                                page_number = source.get("page_number", "N/A")
+                                score = source.get("score", None)
+
+                                if score is not None:
+                                    score_text = f"{float(score):.2f}"
+                                else:
+                                    score_text = "N/A"
+
+                                source_card_html = (
+                                    f'<div style="border:1px solid #e4e4e7; border-radius:14px; '
+                                    f'padding:0.7rem 0.9rem; margin:0.45rem 0 0.2rem 0; background:#ffffff;">'
+                                    f'<div style="display:flex; justify-content:space-between; align-items:center; '
+                                    f'gap:0.75rem; flex-wrap:wrap;">'
+                                    f'<div style="display:flex; align-items:center; gap:0.55rem; flex-wrap:wrap;">'
+                                    f'<span style="display:inline-block; background:#f5f3ff; border:1px solid #ddd6fe; '
+                                    f'color:#7c3aed; font-size:0.72rem; font-weight:600; padding:2px 8px; '
+                                    f'border-radius:999px;">{node_type}</span>'
+                                    f'<span style="color:#71717a; font-size:0.82rem; font-weight:600;">'
+                                    f'Page {page_number}</span>'
+                                    f'</div>'
+                                    f'<div style="color:#16a34a; font-size:0.82rem; font-weight:700;">'
+                                    f'Score: {score_text}</div>'
+                                    f'</div>'
+                                    f'</div>'
+                                )
+
+                                st.markdown(source_card_html, unsafe_allow_html=True)
+
+                                with st.expander("Show full context", expanded=False):
+                                    st.text(source.get("content", ""))
+
             if st.session_state.generate_response_now and st.session_state.pending_user_prompt:
                 with st.spinner("Thinking..."):
                     try:
-                        response_text, sources_html = run_query_with_memory(
+                        # response_text, sources_html = run_query_with_memory(
+                        #     st.session_state.pending_user_prompt
+                        # )
+                        response_text, sources_html, sources_data = run_query_with_memory(
                             st.session_state.pending_user_prompt
                         )
                     except Exception as e:
                         response_text = f"⚠️ Retrieval error: {e}"
                         sources_html = ""
+                        sources_data = []
                         logging.error(f"Query failed: {e}")
 
                 st.session_state.chat_history.append(
                     {
                         "role": "assistant",
                         "content": response_text,
-                        "sources_html": sources_html,
+                        # "sources_html": sources_html,
+                        "sources_data": sources_data,
                     }
                 )
                 st.session_state.pending_user_prompt = None
@@ -1178,12 +1332,30 @@ if st.session_state.active_tab == "Chat":
                 disabled=not pipeline_ready(),
             )
 
+            st.session_state.retrieval_top_k = st.slider(
+                "Top-k (retrieval)",
+                min_value=1,
+                max_value=10,
+                value=st.session_state.retrieval_top_k,
+                step=1,
+                disabled=not pipeline_ready(),
+            )
+
+            st.session_state.rerank_top_k = st.slider(
+                "Top-k (rerank)",
+                min_value=1,
+                max_value=5,
+                value=st.session_state.rerank_top_k,
+                step=1,
+                disabled=(not pipeline_ready() or not st.session_state.use_reranker),
+            )
+
             if not pipeline_ready():
                 st.caption("Available after pipeline setup.")
 
             st.markdown("<div style='height:0.9rem;'></div>", unsafe_allow_html=True)
-            st.markdown('<div class="section-title">Quick status</div>', unsafe_allow_html=True)
-            st.markdown('<div class="section-subtitle">Current app and pipeline state.</div>', unsafe_allow_html=True)
+            # st.markdown('<div class="section-title">Quick status</div>', unsafe_allow_html=True)
+            # st.markdown('<div class="section-subtitle">Current app and pipeline state.</div>', unsafe_allow_html=True)
 
         with st.container(border=True):
             st.markdown(
@@ -1202,6 +1374,14 @@ if st.session_state.active_tab == "Chat":
                 <div style="font-size:0.9rem; color:#71717a; margin-bottom:0.3rem;">Reranker model</div>
                 <div style="font-weight:600; color:#18181b; margin-bottom:0.8rem;">
                     {st.session_state.reranker_model if st.session_state.use_reranker else "Disabled"}
+                </div>
+
+                <div style="font-size:0.9rem; color:#71717a; margin-bottom:0.3rem;">Top-k (retrieval)</div>
+                <div style="font-weight:600; color:#18181b; margin-bottom:0.8rem;">{st.session_state.retrieval_top_k}</div>
+
+                <div style="font-size:0.9rem; color:#71717a; margin-bottom:0.3rem;">Top-k (rerank)</div>
+                <div style="font-weight:600; color:#18181b; margin-bottom:0.8rem;">
+                    {st.session_state.rerank_top_k if st.session_state.use_reranker else "Disabled"}
                 </div>
 
                 <div style="font-size:0.9rem; color:#71717a; margin-bottom:0.3rem;">Messages</div>
