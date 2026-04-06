@@ -441,8 +441,8 @@ def init_session_state():
         "uploaded_pdf_name": None,
         "pending_user_prompt": None,
         "generate_response_now": False,
-        "retrieval_top_k": 5,
-        "rerank_top_k": 5,
+        "retrieval_top_k": 15,
+        "rerank_top_k": 10,
         "dev_console_code": """# Example:
         print(f"Layer 1 parts extracted: {len(st.session_state.extraction_result_layer1.data)}")
         print(f"Layer 2 rows extracted:  {len(st.session_state.extraction_result_layer2.data)}")
@@ -938,12 +938,12 @@ def run_query_for_mode(user_query: str, mode: str) -> tuple[str, list[dict]]:
     if mode == "Vector Only":
         retriever = build_basic_vector_retriever(
             basic_index=st.session_state.basic_index,
-            similarity_top_k=st.session_state.retrieval_top_k,
+            similarity_top_k=st.session_state.benchmark_retrieval_top_k,
         )
     elif mode == "Hybrid Only":
         retriever = build_basic_hybrid_retriever(
             hybrid_index=st.session_state.hybrid_index,
-            similarity_top_k=st.session_state.retrieval_top_k,
+            similarity_top_k=st.session_state.benchmark_retrieval_top_k,
         )
     elif mode == "Hybrid + Metadata Filtering":
         intent = extract_query_intent(user_query, Settings.llm)
@@ -952,7 +952,7 @@ def run_query_for_mode(user_query: str, mode: str) -> tuple[str, list[dict]]:
             basic_index=st.session_state.basic_index,
             hybrid_index=st.session_state.hybrid_index,
             use_hybrid=True,
-            similarity_top_k=st.session_state.retrieval_top_k,
+            similarity_top_k=st.session_state.benchmark_retrieval_top_k,
         )
     else:
         retriever = build_custom_retriever(
@@ -968,7 +968,7 @@ def run_query_for_mode(user_query: str, mode: str) -> tuple[str, list[dict]]:
         try:
             reranker = SentenceTransformerRerank(
                 model=st.session_state.reranker_model,
-                top_n=st.session_state.rerank_top_k,
+                top_n=st.session_state.benchmark_rerank_top_k,
             )
             node_postprocessors.append(reranker)
         except Exception as e:
@@ -1464,19 +1464,28 @@ if st.session_state.active_tab == "Chat":
                     placeholder="e.g. Is there a POM spur gear with module 1.25 and ZZ=110?",
                 )
 
-                suggestion_cols = st.columns(3)
-                suggestions = [
-                    "Is there a POM spur gear with module 1.25 and ZZ=110?",
-                    "Find steel spur gears with module 1.0 and torque above 200 Ncm.",
-                    "Which bevel gears are available with article number beginning with KB?",
-                ]
+                # Top_k sliders
+                benchmark_retrieval_top_k, benchmark_rerank_top_k = st.columns(2)
 
-                for i, suggestion in enumerate(suggestions):
-                    with suggestion_cols[i]:
-                        if st.button(suggestion, key=f"benchmark_suggestion_{i}", use_container_width=True):
-                            st.session_state.benchmark_query = suggestion
-                            st.rerun()
+                with benchmark_retrieval_top_k:
+                    st.session_state.benchmark_retrieval_top_k = st.slider(
+                        "Top-k (retriever)",
+                        min_value=1,
+                        max_value=20,
+                        value=st.session_state.get("benchmark_retrieval_top_k", st.session_state.retrieval_top_k),
+                        step=1,
+                        disabled=not pipeline_ready(),
+                    )
 
+                with benchmark_rerank_top_k:
+                    st.session_state.benchmark_rerank_top_k = st.slider(
+                        "Top-k (reranker)",
+                        min_value=1,
+                        max_value=10,
+                        value=st.session_state.get("benchmark_rerank_top_k", st.session_state.rerank_top_k),
+                        step=1,
+                        disabled=(not pipeline_ready() or not st.session_state.use_reranker),
+                    )
 
                 # run_benchmark = st.button("Run comparison", use_container_width=False)
                 button_col1, button_col2, _ = st.columns([1, 1, 4])
@@ -1489,6 +1498,58 @@ if st.session_state.active_tab == "Chat":
                 if clear_benchmark:
                     st.session_state.benchmark_results = {}
                     st.rerun()
+
+                st.markdown("#### Query suggestions")
+                suggestion_cols = st.columns(3)
+
+                suggestions_hybrid = [
+                    "How many spur gear parts made of PK does this catalog have? Mention their module please.",
+                    "Is there a POM spur gear with module 1.25 and ZZ=110?",
+                    "Give me the spur gear with article number SH0555HF",
+                ]
+
+                suggestions_range_numeric_constraint = [
+                    "Find spur gears with module 1.0 and torque above 180 Ncm.",
+                    "Find PK gears with teeth number fewer than 14 teeth",
+                    "Find me PK gear rows with torque > 200Ncm and teeth count < 23 teeth",
+                ]
+
+                suggestions_multi_hop = [
+                    "Give me all articles that share the same module AND material as article SPK125110PK",
+                    "Which material has the most gear variants overall?",
+                    "Find gears that have the same teeth count as the heaviest gear in the catalog",
+                ]
+
+                # for i, suggestion in enumerate(suggestions):
+                #     with suggestion_cols[i]:
+                #         if st.button(suggestion, key=f"benchmark_suggestion_{i}", use_container_width=True):
+                #             st.session_state.benchmark_query = suggestion
+                #             st.rerun()
+
+                st.markdown("**Hybrid / direct lookup**")
+                hybrid_cols = st.columns(3)
+                for i, suggestion in enumerate(suggestions_hybrid):
+                    with hybrid_cols[i]:
+                        if st.button(suggestion, key=f"benchmark_hybrid_suggestion_{i}", use_container_width=True):
+                            st.session_state.benchmark_query = suggestion
+                            st.rerun()
+
+                st.markdown("**Range / numeric constraints**")
+                range_cols = st.columns(3)
+                for i, suggestion in enumerate(suggestions_range_numeric_constraint):
+                    with range_cols[i]:
+                        if st.button(suggestion, key=f"benchmark_range_suggestion_{i}", use_container_width=True):
+                            st.session_state.benchmark_query = suggestion
+                            st.rerun()
+
+                st.markdown("**Multi-hop reasoning**")
+                multi_cols = st.columns(3)
+                for i, suggestion in enumerate(suggestions_multi_hop):
+                    with multi_cols[i]:
+                        if st.button(suggestion, key=f"benchmark_multihop_suggestion_{i}", use_container_width=True):
+                            st.session_state.benchmark_query = suggestion
+                            st.rerun()
+
                     
             if benchmark_query != st.session_state.benchmark_query:
                 st.session_state.benchmark_query = benchmark_query
@@ -1505,6 +1566,24 @@ if st.session_state.active_tab == "Chat":
             # -----------------------------------
 
             if st.session_state.benchmark_results:
+                
+                st.markdown("### Query")
+                st.markdown(
+                    f"""
+                    <div style="
+                        border:1px solid #e4e4e7;
+                        border-radius:14px;
+                        padding:0.8rem 1rem;
+                        background:#fafafa;
+                        color:#18181b;
+                        font-weight:600;
+                        margin-bottom:0.8rem;
+                    ">
+                        {st.session_state.benchmark_query}
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
 
                 summary_rows = []
                 for mode, result in st.session_state.benchmark_results.items():
@@ -1579,42 +1658,49 @@ if st.session_state.active_tab == "Chat":
                                 st.write(result.get("answer", ""))
 
                                 sources = result.get("sources", [])
-                                if sources:
-                                    st.markdown("**Sources**")
-                                    for source in sources:
-                                        node_type = source.get("node_type", "unknown")
-                                        page_number = source.get("page_number", "N/A")
-                                        score = source.get("score", None)
 
-                                        if score is not None:
-                                            score_text = f"{float(score):.2f}"
-                                        else:
-                                            score_text = "N/A"
+                                show_sources = st.toggle(
+                                    "Show sources",
+                                    value=False,
+                                    key=f"show_sources_{mode}",
+                                )
+                                if show_sources:
+                                    if sources:
+                                        st.markdown("**Sources**")
+                                        for source in sources:
+                                            node_type = source.get("node_type", "unknown")
+                                            page_number = source.get("page_number", "N/A")
+                                            score = source.get("score", None)
 
-                                        source_card_html = (
-                                            f'<div style="border:1px solid #e4e4e7; border-radius:14px; '
-                                            f'padding:0.7rem 0.9rem; margin:0.45rem 0 0.2rem 0; background:#ffffff;">'
-                                            f'<div style="display:flex; justify-content:space-between; align-items:center; '
-                                            f'gap:0.75rem; flex-wrap:wrap;">'
-                                            f'<div style="display:flex; align-items:center; gap:0.55rem; flex-wrap:wrap;">'
-                                            f'<span style="display:inline-block; background:#f5f3ff; border:1px solid #ddd6fe; '
-                                            f'color:#7c3aed; font-size:0.72rem; font-weight:600; padding:2px 8px; '
-                                            f'border-radius:999px;">{node_type}</span>'
-                                            f'<span style="color:#71717a; font-size:0.82rem; font-weight:600;">'
-                                            f'Page {page_number}</span>'
-                                            f'</div>'
-                                            f'<div style="color:#16a34a; font-size:0.82rem; font-weight:700;">'
-                                            f'Score: {score_text}</div>'
-                                            f'</div>'
-                                            f'</div>'
-                                        )
+                                            if score is not None:
+                                                score_text = f"{float(score):.2f}"
+                                            else:
+                                                score_text = "N/A"
 
-                                        st.markdown(source_card_html, unsafe_allow_html=True)
+                                            source_card_html = (
+                                                f'<div style="border:1px solid #e4e4e7; border-radius:14px; '
+                                                f'padding:0.7rem 0.9rem; margin:0.45rem 0 0.2rem 0; background:#ffffff;">'
+                                                f'<div style="display:flex; justify-content:space-between; align-items:center; '
+                                                f'gap:0.75rem; flex-wrap:wrap;">'
+                                                f'<div style="display:flex; align-items:center; gap:0.55rem; flex-wrap:wrap;">'
+                                                f'<span style="display:inline-block; background:#f5f3ff; border:1px solid #ddd6fe; '
+                                                f'color:#7c3aed; font-size:0.72rem; font-weight:600; padding:2px 8px; '
+                                                f'border-radius:999px;">{node_type}</span>'
+                                                f'<span style="color:#71717a; font-size:0.82rem; font-weight:600;">'
+                                                f'Page {page_number}</span>'
+                                                f'</div>'
+                                                f'<div style="color:#16a34a; font-size:0.82rem; font-weight:700;">'
+                                                f'Score: {score_text}</div>'
+                                                f'</div>'
+                                                f'</div>'
+                                            )
 
-                                        with st.expander("Show full context", expanded=False):
-                                            st.text(source.get("content", ""))
-                                else:
-                                    st.info("No sources returned.")
+                                            st.markdown(source_card_html, unsafe_allow_html=True)
+
+                                            with st.expander("Show full context", expanded=False):
+                                                st.text(source.get("content", ""))
+                                    else:
+                                        st.info("No sources returned.")
 
     with right_col:
         st.markdown('<div class="section-title">Retrieval configuration</div>', unsafe_allow_html=True)
