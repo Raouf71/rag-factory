@@ -34,6 +34,8 @@ from retrieval.retriever import (
 )
 from retrieval.filters import build_filtered_retriever
 from retrieval.intent import extract_query_intent
+from retrieval.agent import build_agent_retriever
+
 from config.settings import (
     DEEPSEEK_KEY,
     OPENAI_KEY,
@@ -386,17 +388,14 @@ class LogCapture(logging.Handler):
     def get_logs(self) -> str:
         return "\n".join(self.records)
 
-
 def capture_logs() -> LogCapture:
     handler = LogCapture()
     handler.setFormatter(logging.Formatter("%(levelname)s  %(name)s — %(message)s"))
     logging.getLogger().addHandler(handler)
     return handler
 
-
 def release_logs(handler: LogCapture):
     logging.getLogger().removeHandler(handler)
-
 
 # -----------------------------------------------------------------------
 # Session state init
@@ -409,7 +408,6 @@ STEP_KEYS = [
     "step5_kg",
     "step6_retrievers",
 ]
-
 
 def init_session_state():
     defaults = {
@@ -450,11 +448,11 @@ def init_session_state():
         "dev_console_output": "",
         "benchmark_query": "",
         "benchmark_results": {},
+        "agent_retriever": None,
     }
     for k, v in defaults.items():
         if k not in st.session_state:
             st.session_state[k] = v
-
 
 init_session_state()
 
@@ -494,7 +492,6 @@ def setup_models():
             model="text-embedding-3-large",
             api_key=OPENAI_KEY,
         )
-
 
 if not st.session_state.models_initialized:
     setup_models()
@@ -634,6 +631,19 @@ def run_step6():
             )
         else:
             st.session_state.kg_retriever = None
+
+        # Agent retriever
+        try:
+            st.session_state.agent_retriever = build_agent_retriever(
+                basic_index=st.session_state.basic_index,
+                hybrid_index=st.session_state.hybrid_index,
+                property_graph_index=st.session_state.property_graph_index,
+                similarity_top_k=st.session_state.retrieval_top_k,
+            )
+        except Exception as e:
+            logging.warning(f"Agent retriever unavailable: {e}")
+            st.session_state.agent_retriever = None
+
 
         st.session_state.step6_retrievers = "done"
         st.session_state.step6_retrievers_stat = (
@@ -1139,11 +1149,28 @@ def build_sources_data(nodes) -> list[dict]:
 # -----------------------------------------------------------------------
 # Query with memory
 # -----------------------------------------------------------------------
-def run_query_with_memory(user_query: str) -> tuple[str, str]:
+def run_query_with_memory(user_query: str) -> tuple[str, str, list[dict]]:
     mode = st.session_state.retrieval_mode
     top_k = st.session_state.retrieval_top_k
 
+    if mode == "Agent Mode":
+        agent = st.session_state.agent_retriever
 
+        if agent is None:
+            return "⚠️ Agent Mode is not ready yet. Run Step 6 first.", "", []
+
+        async def _run_agent_query():
+            response = await agent.run(user_query)
+            return response
+
+        try:
+            response = asyncio.run(_run_agent_query())
+        except Exception as e:
+            logging.error(f"Agent Mode failed: {e}")
+            return f"⚠️ Agent retrieval error: {e}", "", []
+
+        return str(response), "", []
+    
     if mode == "Vector Only":
         # retriever = build_basic_vector_retriever(basic_index=st.session_state.basic_index)
         retriever = build_basic_vector_retriever(
@@ -1203,9 +1230,9 @@ def run_query_with_memory(user_query: str) -> tuple[str, str]:
 
     sources_html = format_sources(source_nodes)
     sources_data = build_sources_data(source_nodes)
-
     
     return str(response), sources_html, sources_data
+
 # -----------------------------------------------------------------------
 # Developer Console Helper
 # -----------------------------------------------------------------------
@@ -1713,6 +1740,9 @@ if st.session_state.active_tab == "Chat":
                 "Hybrid + Metadata Filtering",
                 "KG + Hybrid + Metadata Filtering",
             ]
+
+            if st.session_state.agent_retriever is not None:
+                retrieval_options.append("Agent Mode")
 
             st.session_state.retrieval_mode = st.selectbox(
                 "Retrieval Mode",

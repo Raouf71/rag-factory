@@ -27,6 +27,7 @@ from retrieval.retriever import (
     build_kg_retriever,
     build_custom_retriever,
 )
+from retrieval.agent import build_agent_retriever
 
 from config.settings import (
     PDF_PATH,
@@ -128,6 +129,13 @@ async def run_pipeline(debug: bool = False):
         include_text=True,
     )
 
+    # 7. Agent implementation
+    agent = build_agent_retriever(
+        basic_index=basic_index,
+        hybrid_index=hybrid_index,
+        property_graph_index=property_graph_index,
+    )
+
     return dict(
         basic_index=basic_index,
         hybrid_index=hybrid_index,
@@ -135,6 +143,7 @@ async def run_pipeline(debug: bool = False):
         vector_retriever=vector_retriever,
         hybrid_retriever=hybrid_retriever,
         kg_retriever=kg_retriever,
+        agent=agent,
     )
 
 # -----------------------------------------------------------------------
@@ -160,6 +169,12 @@ def run_query(query: str, pipeline: dict, debug: bool = False) -> str:
     )
     response = query_engine.query(query)
     logger.info(f"Query: '{query}' → response generated")
+    return str(response)
+
+def run_agent_query(query: str, pipeline: dict) -> str:
+    agent = pipeline["agent"]
+    response = agent.chat(query)
+    logger.info(f"Agent query: '{query}' → response generated")
     return str(response)
 
 # -----------------------------------------------------------------------
