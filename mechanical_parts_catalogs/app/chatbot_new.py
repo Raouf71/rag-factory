@@ -447,6 +447,8 @@ def init_session_state():
         print(f"Layer 2 rows extracted:  {len(st.session_state.extraction_result_layer2.data)}")
         """,
         "dev_console_output": "",
+        "benchmark_query": "",
+        "benchmark_results": {},
     }
     for k, v in defaults.items():
         if k not in st.session_state:
@@ -503,7 +505,6 @@ if not st.session_state.models_initialized:
 def step_icon(status: str) -> str:
     return {"idle": "○", "running": "◌", "done": "●", "error": "✕"}.get(status, "○")
 
-
 def step_css_class(status: str) -> str:
     return {
         "idle": "idle",
@@ -538,7 +539,6 @@ def run_step1():
         release_logs(handler)
         st.session_state.step1_extraction_log = handler.get_logs()
 
-
 def run_step2():
     handler = capture_logs()
     st.session_state.step2_mapping = "running"
@@ -559,7 +559,6 @@ def run_step2():
         release_logs(handler)
         st.session_state.step2_mapping_log = handler.get_logs()
 
-
 def run_step3():
     handler = capture_logs()
     st.session_state.step3_nodes = "running"
@@ -578,7 +577,6 @@ def run_step3():
     finally:
         release_logs(handler)
         st.session_state.step3_nodes_log = handler.get_logs()
-
 
 def run_step4():
     handler = capture_logs()
@@ -601,7 +599,6 @@ def run_step4():
         release_logs(handler)
         st.session_state.step4_indexing_log = handler.get_logs()
 
-
 def run_step5():
     handler = capture_logs()
     st.session_state.step5_kg = "running"
@@ -616,7 +613,6 @@ def run_step5():
     finally:
         release_logs(handler)
         st.session_state.step5_kg_log = handler.get_logs()
-
 
 def run_step6():
     handler = capture_logs()
@@ -642,7 +638,6 @@ def run_step6():
     finally:
         release_logs(handler)
         st.session_state.step6_retrievers_log = handler.get_logs()
-
 
 STEPS = [
     {
@@ -717,7 +712,6 @@ def reset_all():
     st.session_state.hybrid_retriever = None
     st.session_state.kg_retriever = None
     clear_chat()
-
 
 def switch_tab(tab_name: str):
     st.session_state.active_tab = tab_name
@@ -931,6 +925,98 @@ def mapped_parts_to_preview(mapped_parts):
 
     return preview_items
 
+def run_query_for_mode(user_query: str, mode: str) -> tuple[str, list[dict]]:
+    if mode == "Vector Only":
+        retriever = build_basic_vector_retriever(
+            basic_index=st.session_state.basic_index,
+            similarity_top_k=st.session_state.retrieval_top_k,
+        )
+    elif mode == "Hybrid Only":
+        retriever = build_basic_hybrid_retriever(
+            hybrid_index=st.session_state.hybrid_index,
+            similarity_top_k=st.session_state.retrieval_top_k,
+        )
+    elif mode == "Hybrid + Metadata Filtering":
+        intent = extract_query_intent(user_query, Settings.llm)
+        retriever = build_filtered_retriever(
+            intent=intent,
+            basic_index=st.session_state.basic_index,
+            hybrid_index=st.session_state.hybrid_index,
+            use_hybrid=True,
+            similarity_top_k=st.session_state.retrieval_top_k,
+        )
+    else:
+        retriever = build_custom_retriever(
+            query=user_query,
+            basic_index=st.session_state.basic_index,
+            hybrid_index=st.session_state.hybrid_index,
+            kg_retriever=st.session_state.kg_retriever,
+            similarity_top_k=st.session_state.retrieval_top_k,
+        )
+
+    node_postprocessors = []
+    if st.session_state.use_reranker:
+        try:
+            reranker = SentenceTransformerRerank(
+                model=st.session_state.reranker_model,
+                top_n=st.session_state.rerank_top_k,
+            )
+            node_postprocessors.append(reranker)
+        except Exception as e:
+            logging.warning(f"Reranker unavailable: {e}")
+
+    temp_memory = ChatMemoryBuffer.from_defaults(token_limit=4096)
+
+    chat_engine = CondensePlusContextChatEngine.from_defaults(
+        retriever=retriever,
+        memory=temp_memory,
+        llm=Settings.llm,
+        node_postprocessors=node_postprocessors,
+        context_prompt=(
+            "You are an expert in mechanical gear catalogs.\n"
+            "Answer using only the catalog data provided below.\n"
+            "If the answer is not in the context, say so explicitly.\n\n"
+            "Context:\n{context_str}\n\nChat history:\n{chat_history}"
+        ),
+    )
+
+    response = chat_engine.chat(user_query)
+    source_nodes = response.source_nodes if hasattr(response, "source_nodes") else []
+    return str(response), build_sources_data(source_nodes)
+
+def benchmark_all_modes(user_query: str) -> dict:
+    import time
+
+    modes = [
+        "Vector Only",
+        "Hybrid Only",
+        "Hybrid + Metadata Filtering",
+        "KG + Hybrid + Metadata Filtering",
+    ]
+
+    results = {}
+
+    for mode in modes:
+        started = time.perf_counter()
+        try:
+            answer, sources = run_query_for_mode(user_query, mode)
+            elapsed = time.perf_counter() - started
+            results[mode] = {
+                "answer": answer,
+                "sources": sources,
+                "latency_sec": elapsed,
+                "error": None,
+            }
+        except Exception as e:
+            elapsed = time.perf_counter() - started
+            results[mode] = {
+                "answer": "",
+                "sources": [],
+                "latency_sec": elapsed,
+                "error": str(e),
+            }
+
+    return results
 
 # -----------------------------------------------------------------------
 # Source formatting
@@ -1111,7 +1197,6 @@ def run_query_with_memory(user_query: str) -> tuple[str, str]:
 
     
     return str(response), sources_html, sources_data
-
 # -----------------------------------------------------------------------
 # Developer Console Helper
 # -----------------------------------------------------------------------
@@ -1189,163 +1274,284 @@ st.markdown(
 # CHAT TAB
 # -----------------------------------------------------------------------
 if st.session_state.active_tab == "Chat":
-    left_col, right_col = st.columns([3.8, 1.3], gap="large")
+    st.markdown('<div class="section-title">Chat with your assistant</div>', unsafe_allow_html=True)
+    st.markdown(
+        '<div class="section-subtitle">Ask about spur gears, bevel gears, dimensions, materials, torque, or article numbers.</div>',
+        unsafe_allow_html=True,
+    )
 
-    with left_col:
-        st.markdown('<div class="section-title">Chat with your assistant</div>', unsafe_allow_html=True)
-        st.markdown(
-            '<div class="section-subtitle">Ask about spur gears, bevel gears, dimensions, materials, torque, or article numbers.</div>',
-            unsafe_allow_html=True,
-        )
+    chat_tab_assistant, chat_tab_benchmark = st.tabs(
+        ["Assistant Chat", "Retrieval Benchmarking Playground"]
+    )
 
-        if pipeline_ready():
-            mode_text = st.session_state.retrieval_mode
-            if st.session_state.use_reranker:
-                mode_text += " · Reranker On"
-            st.markdown(
-                f'<div class="mode-badge">{mode_text}</div>',
-                unsafe_allow_html=True,
-            )
+    with chat_tab_assistant:
+        left_col, right_col = st.columns([3.8, 1.3], gap="large")
 
-     
-        with st.container(border=True, height=500):
-            if not pipeline_ready() and not st.session_state.chat_history:
+        with left_col:
+
+            if pipeline_ready():
+                mode_text = st.session_state.retrieval_mode
+                if st.session_state.use_reranker:
+                    mode_text += " · Reranker On"
                 st.markdown(
-                    """
-                    <div class="placeholder-card">
-                        <div style="font-size:2.2rem; margin-bottom:0.8rem;">⚙️</div>
-                        Run the pipeline steps in the <b>Pipeline</b> tab to activate chat.
-                    </div>
-                    """,
+                    f'<div class="mode-badge">{mode_text}</div>',
                     unsafe_allow_html=True,
                 )
-            else:
-                for msg in st.session_state.chat_history:
-                    role = msg["role"]
-                    content = msg["content"]
-                    sources_html = msg.get("sources_html", "")
-                    sources_data = msg.get("sources_data", [])
+        
+            with st.container(border=True, height=500):
+                if not pipeline_ready() and not st.session_state.chat_history:
+                    st.markdown(
+                        """
+                        <div class="placeholder-card">
+                            <div style="font-size:2.2rem; margin-bottom:0.8rem;">⚙️</div>
+                            Run the pipeline steps in the <b>Pipeline</b> tab to activate chat.
+                        </div>
+                        """,
+                        unsafe_allow_html=True,
+                    )
+                else:
+                    for msg in st.session_state.chat_history:
+                        role = msg["role"]
+                        content = msg["content"]
+                        sources_html = msg.get("sources_html", "")
+                        sources_data = msg.get("sources_data", [])
 
-                    if role == "user":
-                        st.markdown(
-                            f"""
-                            <div class="msg-row user">
-                                <div>
-                                    <div class="msg-meta" style="text-align:right;">You</div>
-                                    <div class="msg-bubble user">{content}</div>
-                                </div>
-                            </div>
-                            """,
-                            unsafe_allow_html=True,
-                        )
-                    else:
-                        assistant_html = (
-                            f'<div class="msg-row assistant">'
-                            f'<div style="width:100%;">'
-                            f'<div class="msg-meta">AI Assistant</div>'
-                            f'<div class="msg-bubble assistant">{content}</div>'
-                            f'</div>'
-                            f'</div>'
-                        )
-
-                        st.markdown(assistant_html, unsafe_allow_html=True)
-
-                        if sources_data:
+                        if role == "user":
                             st.markdown(
-                                '<div class="sources-label" style="margin:0.5rem 0 0.35rem 0;">Sources</div>',
+                                f"""
+                                <div class="msg-row user">
+                                    <div>
+                                        <div class="msg-meta" style="text-align:right;">You</div>
+                                        <div class="msg-bubble user">{content}</div>
+                                    </div>
+                                </div>
+                                """,
                                 unsafe_allow_html=True,
                             )
+                        else:
+                            assistant_html = (
+                                f'<div class="msg-row assistant">'
+                                f'<div style="width:100%;">'
+                                f'<div class="msg-meta">AI Assistant</div>'
+                                f'<div class="msg-bubble assistant">{content}</div>'
+                                f'</div>'
+                                f'</div>'
+                            )
 
-                            for source in sources_data:
-                                node_type = source.get("node_type", "unknown")
-                                page_number = source.get("page_number", "N/A")
-                                score = source.get("score", None)
+                            st.markdown(assistant_html, unsafe_allow_html=True)
 
-                                if score is not None:
-                                    score_text = f"{float(score):.2f}"
-                                else:
-                                    score_text = "N/A"
-
-                                source_card_html = (
-                                    f'<div style="border:1px solid #e4e4e7; border-radius:14px; '
-                                    f'padding:0.7rem 0.9rem; margin:0.45rem 0 0.2rem 0; background:#ffffff;">'
-                                    f'<div style="display:flex; justify-content:space-between; align-items:center; '
-                                    f'gap:0.75rem; flex-wrap:wrap;">'
-                                    f'<div style="display:flex; align-items:center; gap:0.55rem; flex-wrap:wrap;">'
-                                    f'<span style="display:inline-block; background:#f5f3ff; border:1px solid #ddd6fe; '
-                                    f'color:#7c3aed; font-size:0.72rem; font-weight:600; padding:2px 8px; '
-                                    f'border-radius:999px;">{node_type}</span>'
-                                    f'<span style="color:#71717a; font-size:0.82rem; font-weight:600;">'
-                                    f'Page {page_number}</span>'
-                                    f'</div>'
-                                    f'<div style="color:#16a34a; font-size:0.82rem; font-weight:700;">'
-                                    f'Score: {score_text}</div>'
-                                    f'</div>'
-                                    f'</div>'
+                            if sources_data:
+                                st.markdown(
+                                    '<div class="sources-label" style="margin:0.5rem 0 0.35rem 0;">Sources</div>',
+                                    unsafe_allow_html=True,
                                 )
 
-                                st.markdown(source_card_html, unsafe_allow_html=True)
+                                for source in sources_data:
+                                    node_type = source.get("node_type", "unknown")
+                                    page_number = source.get("page_number", "N/A")
+                                    score = source.get("score", None)
 
-                                with st.expander("Show full context", expanded=False):
-                                    st.text(source.get("content", ""))
+                                    if score is not None:
+                                        score_text = f"{float(score):.2f}"
+                                    else:
+                                        score_text = "N/A"
 
-            if st.session_state.generate_response_now and st.session_state.pending_user_prompt:
-                with st.spinner("Thinking..."):
-                    try:
-                        # response_text, sources_html = run_query_with_memory(
-                        #     st.session_state.pending_user_prompt
-                        # )
-                        response_text, sources_html, sources_data = run_query_with_memory(
-                            st.session_state.pending_user_prompt
-                        )
-                    except Exception as e:
-                        response_text = f"⚠️ Retrieval error: {e}"
-                        sources_html = ""
-                        sources_data = []
-                        logging.error(f"Query failed: {e}")
+                                    source_card_html = (
+                                        f'<div style="border:1px solid #e4e4e7; border-radius:14px; '
+                                        f'padding:0.7rem 0.9rem; margin:0.45rem 0 0.2rem 0; background:#ffffff;">'
+                                        f'<div style="display:flex; justify-content:space-between; align-items:center; '
+                                        f'gap:0.75rem; flex-wrap:wrap;">'
+                                        f'<div style="display:flex; align-items:center; gap:0.55rem; flex-wrap:wrap;">'
+                                        f'<span style="display:inline-block; background:#f5f3ff; border:1px solid #ddd6fe; '
+                                        f'color:#7c3aed; font-size:0.72rem; font-weight:600; padding:2px 8px; '
+                                        f'border-radius:999px;">{node_type}</span>'
+                                        f'<span style="color:#71717a; font-size:0.82rem; font-weight:600;">'
+                                        f'Page {page_number}</span>'
+                                        f'</div>'
+                                        f'<div style="color:#16a34a; font-size:0.82rem; font-weight:700;">'
+                                        f'Score: {score_text}</div>'
+                                        f'</div>'
+                                        f'</div>'
+                                    )
 
-                st.session_state.chat_history.append(
-                    {
-                        "role": "assistant",
-                        "content": response_text,
-                        # "sources_html": sources_html,
-                        "sources_data": sources_data,
-                    }
-                )
+                                    st.markdown(source_card_html, unsafe_allow_html=True)
+
+                                    with st.expander("Show full context", expanded=False):
+                                        st.text(source.get("content", ""))
+
+                if st.session_state.generate_response_now and st.session_state.pending_user_prompt:
+                    with st.spinner("Thinking..."):
+                        try:
+                            # response_text, sources_html = run_query_with_memory(
+                            #     st.session_state.pending_user_prompt
+                            # )
+                            response_text, sources_html, sources_data = run_query_with_memory(
+                                st.session_state.pending_user_prompt
+                            )
+                        except Exception as e:
+                            response_text = f"⚠️ Retrieval error: {e}"
+                            sources_html = ""
+                            sources_data = []
+                            logging.error(f"Query failed: {e}")
+
+                    st.session_state.chat_history.append(
+                        {
+                            "role": "assistant",
+                            "content": response_text,
+                            # "sources_html": sources_html,
+                            "sources_data": sources_data,
+                        }
+                    )
+                    st.session_state.pending_user_prompt = None
+                    st.session_state.generate_response_now = False
+                    st.rerun()
+
+            with st.container(border=True):
+                with st.form("chat_form", clear_on_submit=True):
+                    user_prompt = st.text_area(
+                        "Message",
+                        placeholder="e.g. Find steel spur gears with module 1.0 and torque > 200 Ncm",
+                        height=110,
+                        label_visibility="collapsed",
+                        disabled=not pipeline_ready(),
+                    )
+
+                    b1, b2, b3 = st.columns([1.2, 1.2, 6])
+
+                    with b1:
+                        send_clicked = st.form_submit_button("Send", use_container_width=True)
+                    with b2:
+                        clear_clicked = st.form_submit_button("Clear Chat", use_container_width=True)
+
+            if clear_clicked:
+                clear_chat()
                 st.session_state.pending_user_prompt = None
                 st.session_state.generate_response_now = False
                 st.rerun()
 
-        with st.container(border=True):
-            with st.form("chat_form", clear_on_submit=True):
-                user_prompt = st.text_area(
-                    "Message",
-                    placeholder="e.g. Find steel spur gears with module 1.0 and torque > 200 Ncm",
-                    height=110,
-                    label_visibility="collapsed",
-                    disabled=not pipeline_ready(),
+            if send_clicked and user_prompt.strip():
+                st.session_state.chat_history.append(
+                    {"role": "user", "content": user_prompt.strip()}
+                )
+                st.session_state.pending_user_prompt = user_prompt.strip()
+                st.session_state.generate_response_now = True
+                st.rerun()
+
+    with chat_tab_benchmark:
+        st.markdown('<div class="section-title">Retrieval Benchmarking Playground</div>', unsafe_allow_html=True)
+        st.markdown(
+            '<div class="section-subtitle">Run one query across all retrieval modes and compare answer quality, sources, and latency.</div>',
+            unsafe_allow_html=True,
+        )
+
+        if not pipeline_ready():
+            st.info("Run all pipeline steps first to enable benchmarking.")
+        else:
+            with st.container(border=True):
+                benchmark_query = st.text_area(
+                    "Benchmark query",
+                    value=st.session_state.benchmark_query,
+                    height=100,
+                    placeholder="e.g. Is there a POM spur gear with module 1.25 and ZZ=110?",
                 )
 
-                b1, b2, b3 = st.columns([1.2, 1.2, 6])
+                suggestion_cols = st.columns(3)
+                suggestions = [
+                    "Is there a POM spur gear with module 1.25 and ZZ=110?",
+                    "Find steel spur gears with module 1.0 and torque above 200 Ncm.",
+                    "Which bevel gears are available with article number beginning with KB?",
+                ]
 
-                with b1:
-                    send_clicked = st.form_submit_button("Send", use_container_width=True)
-                with b2:
-                    clear_clicked = st.form_submit_button("Clear Chat", use_container_width=True)
+                for i, suggestion in enumerate(suggestions):
+                    with suggestion_cols[i]:
+                        if st.button(suggestion, key=f"benchmark_suggestion_{i}", use_container_width=True):
+                            st.session_state.benchmark_query = suggestion
+                            st.rerun()
 
-        if clear_clicked:
-            clear_chat()
-            st.session_state.pending_user_prompt = None
-            st.session_state.generate_response_now = False
-            st.rerun()
+                run_benchmark = st.button("Run comparison", use_container_width=False)
 
-        if send_clicked and user_prompt.strip():
-            st.session_state.chat_history.append(
-                {"role": "user", "content": user_prompt.strip()}
-            )
-            st.session_state.pending_user_prompt = user_prompt.strip()
-            st.session_state.generate_response_now = True
-            st.rerun()
+            if benchmark_query != st.session_state.benchmark_query:
+                st.session_state.benchmark_query = benchmark_query
+
+            if run_benchmark and st.session_state.benchmark_query.strip():
+                with st.spinner("Running retrieval comparison across all modes..."):
+                    st.session_state.benchmark_results = benchmark_all_modes(
+                        st.session_state.benchmark_query.strip()
+                    )
+                st.rerun()
+
+            if st.session_state.benchmark_results:
+                col1, col2 = st.columns(2, gap="large")
+                col3, col4 = st.columns(2, gap="large")
+
+                mode_columns = {
+                    "Vector Only": col1,
+                    "Hybrid Only": col2,
+                    "Hybrid + Metadata Filtering": col3,
+                    "KG + Hybrid + Metadata Filtering": col4,
+                }
+
+                for mode, col in mode_columns.items():
+                    result = st.session_state.benchmark_results.get(mode, {})
+
+                    with col:
+                        with st.container(border=True):
+                            st.markdown(f"### {mode}")
+
+                            latency = result.get("latency_sec")
+                            latency_text = f"{latency:.2f} s" if isinstance(latency, (int, float)) else "N/A"
+
+                            st.markdown(
+                                f"""
+                                <div style="font-size:0.85rem; color:#71717a; margin-bottom:0.35rem;">Latency</div>
+                                <div style="font-weight:700; color:#18181b; margin-bottom:0.9rem;">{latency_text}</div>
+                                """,
+                                unsafe_allow_html=True,
+                            )
+
+                            if result.get("error"):
+                                st.error(result["error"])
+                            else:
+                                st.markdown("**Answer**")
+                                st.write(result.get("answer", ""))
+
+                                sources = result.get("sources", [])
+                                if sources:
+                                    st.markdown("**Sources**")
+                                    for source in sources:
+                                        node_type = source.get("node_type", "unknown")
+                                        page_number = source.get("page_number", "N/A")
+                                        score = source.get("score", None)
+
+                                        if score is not None:
+                                            score_text = f"{float(score):.2f}"
+                                        else:
+                                            score_text = "N/A"
+
+                                        source_card_html = (
+                                            f'<div style="border:1px solid #e4e4e7; border-radius:14px; '
+                                            f'padding:0.7rem 0.9rem; margin:0.45rem 0 0.2rem 0; background:#ffffff;">'
+                                            f'<div style="display:flex; justify-content:space-between; align-items:center; '
+                                            f'gap:0.75rem; flex-wrap:wrap;">'
+                                            f'<div style="display:flex; align-items:center; gap:0.55rem; flex-wrap:wrap;">'
+                                            f'<span style="display:inline-block; background:#f5f3ff; border:1px solid #ddd6fe; '
+                                            f'color:#7c3aed; font-size:0.72rem; font-weight:600; padding:2px 8px; '
+                                            f'border-radius:999px;">{node_type}</span>'
+                                            f'<span style="color:#71717a; font-size:0.82rem; font-weight:600;">'
+                                            f'Page {page_number}</span>'
+                                            f'</div>'
+                                            f'<div style="color:#16a34a; font-size:0.82rem; font-weight:700;">'
+                                            f'Score: {score_text}</div>'
+                                            f'</div>'
+                                            f'</div>'
+                                        )
+
+                                        st.markdown(source_card_html, unsafe_allow_html=True)
+
+                                        with st.expander("Show full context", expanded=False):
+                                            st.text(source.get("content", ""))
+                                else:
+                                    st.info("No sources returned.")
 
     with right_col:
         st.markdown('<div class="section-title">Retrieval configuration</div>', unsafe_allow_html=True)
