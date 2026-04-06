@@ -45,6 +45,7 @@ from streamlit_agraph import agraph, Node, Edge, Config
 import io
 import contextlib
 import traceback
+import pandas as pd
 
 # -----------------------------------------------------------------------
 # Page config
@@ -624,14 +625,22 @@ def run_step6():
         st.session_state.hybrid_retriever = build_basic_hybrid_retriever(
             hybrid_index=st.session_state.hybrid_index
         )
-        st.session_state.kg_retriever = build_kg_retriever(
-            property_graph_index=st.session_state.property_graph_index,
-            similarity_top_k=8,
-            path_depth=3,
-            include_text=True,
-        )
+        if st.session_state.property_graph_index is not None:
+            st.session_state.kg_retriever = build_kg_retriever(
+                property_graph_index=st.session_state.property_graph_index,
+                similarity_top_k=8,
+                path_depth=3,
+                include_text=True,
+            )
+        else:
+            st.session_state.kg_retriever = None
+
         st.session_state.step6_retrievers = "done"
-        st.session_state.step6_retrievers_stat = "Vector · Hybrid · KG retrievers ready"
+        st.session_state.step6_retrievers_stat = (
+            "Vector · Hybrid retrievers ready"
+            if st.session_state.kg_retriever is None
+            else "Vector · Hybrid · KG retrievers ready"
+        )
     except Exception as e:
         st.session_state.step6_retrievers = "error"
         st.session_state.step6_retrievers_stat = str(e)
@@ -671,7 +680,7 @@ STEPS = [
     {
         "key": "step5_kg",
         "label": "Step 5",
-        "name": "Knowledge Graph",
+        "name": "Knowledge Graph (Optional)",
         "run": run_step5,
         "requires": "step3_nodes",
     },
@@ -951,7 +960,7 @@ def run_query_for_mode(user_query: str, mode: str) -> tuple[str, list[dict]]:
             basic_index=st.session_state.basic_index,
             hybrid_index=st.session_state.hybrid_index,
             kg_retriever=st.session_state.kg_retriever,
-            similarity_top_k=st.session_state.retrieval_top_k,
+            # similarity_top_k=st.session_state.retrieval_top_k,
         )
 
     node_postprocessors = []
@@ -1468,8 +1477,19 @@ if st.session_state.active_tab == "Chat":
                             st.session_state.benchmark_query = suggestion
                             st.rerun()
 
-                run_benchmark = st.button("Run comparison", use_container_width=False)
 
+                # run_benchmark = st.button("Run comparison", use_container_width=False)
+                button_col1, button_col2, _ = st.columns([1, 1, 4])
+                with button_col1:
+                    run_benchmark = st.button("Run comparison", use_container_width=True)
+
+                with button_col2:
+                    clear_benchmark = st.button("Clear results", use_container_width=True)
+
+                if clear_benchmark:
+                    st.session_state.benchmark_results = {}
+                    st.rerun()
+                    
             if benchmark_query != st.session_state.benchmark_query:
                 st.session_state.benchmark_query = benchmark_query
 
@@ -1480,7 +1500,50 @@ if st.session_state.active_tab == "Chat":
                     )
                 st.rerun()
 
+            # -----------------------------------
+            # benchmark summary tab
+            # -----------------------------------
+
             if st.session_state.benchmark_results:
+
+                summary_rows = []
+                for mode, result in st.session_state.benchmark_results.items():
+                    answer_text = result.get("answer", "")
+                    answer_preview = (
+                        answer_text[:120] + "..."
+                        if isinstance(answer_text, str) and len(answer_text) > 120
+                        else answer_text
+                    )
+
+                    sources = result.get("sources", [])
+                    top_score = None
+                    if sources:
+                        numeric_scores = []
+                        for s in sources:
+                            try:
+                                if s.get("score") is not None:
+                                    numeric_scores.append(float(s.get("score")))
+                            except Exception:
+                                pass
+                        if numeric_scores:
+                            top_score = max(numeric_scores)
+
+                    latency = result.get("latency_sec", None)
+
+                    summary_rows.append(
+                        {
+                            "Mode": mode,
+                            "Answer": answer_preview if answer_preview else ("Error" if result.get("error") else ""),
+                            "Sources": len(sources),
+                            "Score": f"{top_score:.2f}" if top_score is not None else "N/A",
+                            "Latency (s)": f"{latency:.2f}" if isinstance(latency, (int, float)) else "N/A",
+                        }
+                    )
+
+                st.markdown("### Summary")
+                st.dataframe(pd.DataFrame(summary_rows), use_container_width=True, hide_index=True)
+                st.markdown("<div style='height:0.8rem;'></div>", unsafe_allow_html=True)
+
                 col1, col2 = st.columns(2, gap="large")
                 col3, col4 = st.columns(2, gap="large")
 
@@ -1727,7 +1790,7 @@ elif st.session_state.active_tab == "Pipeline":
             if key == "step6_retrievers":
                 blocked = bool(
                     st.session_state["step4_indexing"] != "done"
-                    or st.session_state["step5_kg"] != "done"
+                    # or st.session_state["step5_kg"] != "done"
                 )
 
             css = step_css_class(status)
