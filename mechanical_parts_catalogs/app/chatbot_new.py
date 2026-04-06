@@ -42,6 +42,9 @@ from config.settings import (
     PDF_PATH,
 )
 from streamlit_agraph import agraph, Node, Edge, Config
+import io
+import contextlib
+import traceback
 
 # -----------------------------------------------------------------------
 # Page config
@@ -439,6 +442,11 @@ def init_session_state():
         "generate_response_now": False,
         "retrieval_top_k": 5,
         "rerank_top_k": 5,
+        "dev_console_code": """# Example:
+        print(f"Layer 1 parts extracted: {len(st.session_state.extraction_result_layer1.data)}")
+        print(f"Layer 2 rows extracted:  {len(st.session_state.extraction_result_layer2.data)}")
+        """,
+        "dev_console_output": "",
     }
     for k, v in defaults.items():
         if k not in st.session_state:
@@ -1105,6 +1113,38 @@ def run_query_with_memory(user_query: str) -> tuple[str, str]:
     return str(response), sources_html, sources_data
 
 # -----------------------------------------------------------------------
+# Developer Console Helper
+# -----------------------------------------------------------------------
+def run_dev_console(code: str) -> str:
+    output_buffer = io.StringIO()
+
+    local_ctx = {
+        "st": st,
+        "Settings": Settings,
+        # handy aliases
+        "extraction_result_layer1": st.session_state.extraction_result_layer1,
+        "extraction_result_layer2": st.session_state.extraction_result_layer2,
+        "mapped_parts": st.session_state.mapped_parts,
+        "part_nodes": st.session_state.part_nodes,
+        "row_nodes": st.session_state.row_nodes,
+        "all_nodes": st.session_state.all_nodes,
+        "basic_index": st.session_state.basic_index,
+        "hybrid_index": st.session_state.hybrid_index,
+        "property_graph_index": st.session_state.property_graph_index,
+        "vector_retriever": st.session_state.vector_retriever,
+        "hybrid_retriever": st.session_state.hybrid_retriever,
+        "kg_retriever": st.session_state.kg_retriever,
+    }
+
+    try:
+        with contextlib.redirect_stdout(output_buffer):
+            exec(code, {}, local_ctx)
+    except Exception:
+        output_buffer.write(traceback.format_exc())
+
+    return output_buffer.getvalue()
+
+# -----------------------------------------------------------------------
 # Top navbar
 # -----------------------------------------------------------------------
 nav_left, nav_right = st.columns([4, 5])
@@ -1706,6 +1746,99 @@ elif st.session_state.active_tab == "Pipeline":
                 st.rerun()
 
             # st.markdown("</div>", unsafe_allow_html=True)
+
+    # -----------------------------------------------------------------------
+    # Admin debug panel
+    # -----------------------------------------------------------------------
+    show_debug_panel = st.toggle("Show admin/debug panel", value=False)
+
+    if show_debug_panel:
+        st.markdown("## Admin / Debug")
+
+        with st.expander("Step 1 debug", expanded=False):
+            if st.session_state.extraction_result_layer1 is not None:
+                st.code(
+                    f"Layer 1 parts extracted: {len(st.session_state.extraction_result_layer1.data)}\n"
+                    f"Layer 2 rows extracted:  {len(st.session_state.extraction_result_layer2.data)}"
+                )
+                st.write("Layer 1 object:", st.session_state.extraction_result_layer1)
+                st.write("Layer 2 object:", st.session_state.extraction_result_layer2)
+            else:
+                st.info("Step 1 has not been run yet.")
+
+        with st.expander("Step 2 debug", expanded=False):
+            if st.session_state.mapped_parts is not None:
+                st.code(
+                    f"Mapped parts: {len(st.session_state.mapped_parts.parts)}\n"
+                    f"Orphaned rows: {st.session_state.mapped_parts.orphaned_count}"
+                )
+                st.write("Mapped parts object:", st.session_state.mapped_parts)
+            else:
+                st.info("Step 2 has not been run yet.")
+
+        with st.expander("Step 3 debug", expanded=False):
+            if st.session_state.part_nodes is not None:
+                st.code(
+                    f"Parent nodes: {len(st.session_state.part_nodes)}\n"
+                    f"Child nodes: {len(st.session_state.row_nodes)}\n"
+                    f"All nodes: {len(st.session_state.all_nodes)}"
+                )
+                st.write("Part nodes:", st.session_state.part_nodes[:3])
+                st.write("Row nodes:", st.session_state.row_nodes[:3])
+            else:
+                st.info("Step 3 has not been run yet.")
+
+        with st.expander("Step 4 debug", expanded=False):
+            st.write("Basic index:", st.session_state.basic_index)
+            st.write("Hybrid index:", st.session_state.hybrid_index)
+
+        with st.expander("Step 5 debug", expanded=False):
+            st.write("Property graph index:", st.session_state.property_graph_index)
+
+        with st.expander("Step 6 debug", expanded=False):
+            st.write("Vector retriever:", st.session_state.vector_retriever)
+            st.write("Hybrid retriever:", st.session_state.hybrid_retriever)
+            st.write("KG retriever:", st.session_state.kg_retriever)
+
+    # -----------------------------------------------------------------------
+    # Developer Console
+    # -----------------------------------------------------------------------
+
+    dev_console = st.toggle("Show dev-console", value=False)
+
+    if dev_console:
+        st.markdown("## Developer Console")
+
+        with st.container(border=True):
+            # st.markdown("### Developer Console")
+            st.caption("Run arbitrary Python against the current pipeline/session state.")
+
+            code = st.text_area(
+                "Python code",
+                value=st.session_state.dev_console_code,
+                height=220,
+                key="dev_console_code",
+            )
+
+            c1, c2 = st.columns([1, 5])
+
+            with c1:
+                run_code_clicked = st.button("Run code", use_container_width=True)
+
+            with c2:
+                clear_output_clicked = st.button("Clear output", use_container_width=True)
+
+            if run_code_clicked:
+                st.session_state.dev_console_output = run_dev_console(code)
+
+            if clear_output_clicked:
+                st.session_state.dev_console_output = ""
+
+            st.markdown("### Output")
+            if st.session_state.dev_console_output:
+                st.code(st.session_state.dev_console_output)
+            else:
+                st.info("No output yet.")
 
 # -----------------------------------------------------------------------
 # EVALUATION TAB
