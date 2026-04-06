@@ -115,16 +115,15 @@ def build_agent_retriever(
     ]
 
     # KG tool
-    kg_tool = FunctionTool.from_defaults(
-            fn=kg_search,
-            name="kg_search",
-            description=(
-                "Use for relationship-based or multi-hop queries across gears, "
-                "materials, modules, and specifications."
-            ),
-        )
-    
     if kg_ret is not None:
+        kg_tool = FunctionTool.from_defaults(
+                fn=kg_search,
+                name="kg_search",
+                description=(
+                    "Use for relationship-based or multi-hop queries across gears, "
+                    "materials, modules, and specifications."
+                ),
+            )
         tools.append(kg_tool)
 
     # ── build agent ───────────────────────────────────────────────
@@ -144,7 +143,7 @@ def build_agent_retriever(
             "Always ground your answer strictly in the retrieved catalog data."
         ),
         # optional if model chokes on streaming:
-        # streaming=False,
+        streaming=True,
     )
 
     logger.info("Agent retriever built with 4 tools")

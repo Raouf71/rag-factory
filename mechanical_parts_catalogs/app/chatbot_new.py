@@ -23,7 +23,7 @@ from pipeline.mapping import (
     log_mapping_diagnostics,
 )
 from pipeline.nodes import build_retrieval_nodes
-from pipeline.indexing import build_pgvector_store, index_nodes_with_store
+from pipeline.indexing import reset_pgvector_schema, build_pgvector_store, index_nodes_with_store
 from pipeline.graph import get_or_build_property_graph_index
 from pipeline.schemas import PartSchema, TableRowSchema
 from retrieval.retriever import (
@@ -580,6 +580,7 @@ def run_step4():
     handler = capture_logs()
     st.session_state.step4_indexing = "running"
     try:
+        reset_pgvector_schema("public", True)
         basic_store = build_pgvector_store("basic")
         hybrid_store = build_pgvector_store("hybrid")
         basic_index = index_nodes_with_store(st.session_state.all_nodes, basic_store)
@@ -964,6 +965,18 @@ def run_query_for_mode(user_query: str, mode: str) -> tuple[str, list[dict]]:
             use_hybrid=True,
             similarity_top_k=st.session_state.benchmark_retrieval_top_k,
         )
+    elif mode == "Agent Mode":
+        agent = st.session_state.agent_retriever
+
+        if agent is None:
+            return "⚠️ Agent Mode is not ready yet.", []
+
+        async def _run_agent_query():
+            response = await agent.run(user_query)
+            return response
+
+        response = asyncio.run(_run_agent_query())
+        return str(response), []
     else:
         retriever = build_custom_retriever(
             query=user_query,
@@ -1010,10 +1023,14 @@ def benchmark_all_modes(user_query: str) -> dict:
         "Vector Only",
         "Hybrid Only",
         "Hybrid + Metadata Filtering",
-        "KG + Hybrid + Metadata Filtering",
     ]
 
-    results = {}
+    if st.session_state.kg_retriever is not None:
+        modes.append("KG + Hybrid + Metadata Filtering")
+
+    if st.session_state.agent_retriever is not None:
+        modes.append("Agent Mode")
+        results = {}
 
     for mode in modes:
         started = time.perf_counter()
@@ -1514,7 +1531,7 @@ if st.session_state.active_tab == "Chat":
                         disabled=(not pipeline_ready() or not st.session_state.use_reranker),
                     )
 
-                # run_benchmark = st.button("Run comparison", use_container_width=False)
+                # Run comparison/Clear results
                 button_col1, button_col2, _ = st.columns([1, 1, 4])
                 with button_col1:
                     run_benchmark = st.button("Run comparison", use_container_width=True)
@@ -1526,6 +1543,7 @@ if st.session_state.active_tab == "Chat":
                     st.session_state.benchmark_results = {}
                     st.rerun()
 
+                # Query Suggestions
                 st.markdown("#### Query suggestions")
                 suggestion_cols = st.columns(3)
 
@@ -1650,84 +1668,93 @@ if st.session_state.active_tab == "Chat":
                 st.dataframe(pd.DataFrame(summary_rows), use_container_width=True, hide_index=True)
                 st.markdown("<div style='height:0.8rem;'></div>", unsafe_allow_html=True)
 
-                col1, col2 = st.columns(2, gap="large")
-                col3, col4 = st.columns(2, gap="large")
+                # col1, col2 = st.columns(2, gap="large")
+                # col3, col4 = st.columns(2, gap="large")
 
-                mode_columns = {
-                    "Vector Only": col1,
-                    "Hybrid Only": col2,
-                    "Hybrid + Metadata Filtering": col3,
-                    "KG + Hybrid + Metadata Filtering": col4,
-                }
+                # mode_columns = {
+                #     "Vector Only": col1,
+                #     "Hybrid Only": col2,
+                #     "Hybrid + Metadata Filtering": col3,
+                #     "KG + Hybrid + Metadata Filtering": col4,
+                # }
 
-                for mode, col in mode_columns.items():
-                    result = st.session_state.benchmark_results.get(mode, {})
+                benchmark_modes = list(st.session_state.benchmark_results.keys())
 
-                    with col:
-                        with st.container(border=True):
-                            st.markdown(f"### {mode}")
+                rows = [benchmark_modes[i:i+2] for i in range(0, len(benchmark_modes), 2)]
 
-                            latency = result.get("latency_sec")
-                            latency_text = f"{latency:.2f} s" if isinstance(latency, (int, float)) else "N/A"
+                for row_modes in rows:
+                    row_cols = st.columns(len(row_modes), gap="large")
+                    for mode, col in zip(row_modes, row_cols):
+                        result = st.session_state.benchmark_results.get(mode, {})
 
-                            st.markdown(
-                                f"""
-                                <div style="font-size:0.85rem; color:#71717a; margin-bottom:0.35rem;">Latency</div>
-                                <div style="font-weight:700; color:#18181b; margin-bottom:0.9rem;">{latency_text}</div>
-                                """,
-                                unsafe_allow_html=True,
-                            )
+                # for mode, col in mode_columns.items():
+                #     result = st.session_state.benchmark_results.get(mode, {})
 
-                            if result.get("error"):
-                                st.error(result["error"])
-                            else:
-                                st.markdown("**Answer**")
-                                st.write(result.get("answer", ""))
+                        with col:
+                            with st.container(border=True):
+                                st.markdown(f"### {mode}")
 
-                                sources = result.get("sources", [])
+                                latency = result.get("latency_sec")
+                                latency_text = f"{latency:.2f} s" if isinstance(latency, (int, float)) else "N/A"
 
-                                show_sources = st.toggle(
-                                    "Show sources",
-                                    value=False,
-                                    key=f"show_sources_{mode}",
+                                st.markdown(
+                                    f"""
+                                    <div style="font-size:0.85rem; color:#71717a; margin-bottom:0.35rem;">Latency</div>
+                                    <div style="font-weight:700; color:#18181b; margin-bottom:0.9rem;">{latency_text}</div>
+                                    """,
+                                    unsafe_allow_html=True,
                                 )
-                                if show_sources:
-                                    if sources:
-                                        st.markdown("**Sources**")
-                                        for source in sources:
-                                            node_type = source.get("node_type", "unknown")
-                                            page_number = source.get("page_number", "N/A")
-                                            score = source.get("score", None)
 
-                                            if score is not None:
-                                                score_text = f"{float(score):.2f}"
-                                            else:
-                                                score_text = "N/A"
+                                if result.get("error"):
+                                    st.error(result["error"])
+                                else:
+                                    st.markdown("**Answer**")
+                                    st.write(result.get("answer", ""))
 
-                                            source_card_html = (
-                                                f'<div style="border:1px solid #e4e4e7; border-radius:14px; '
-                                                f'padding:0.7rem 0.9rem; margin:0.45rem 0 0.2rem 0; background:#ffffff;">'
-                                                f'<div style="display:flex; justify-content:space-between; align-items:center; '
-                                                f'gap:0.75rem; flex-wrap:wrap;">'
-                                                f'<div style="display:flex; align-items:center; gap:0.55rem; flex-wrap:wrap;">'
-                                                f'<span style="display:inline-block; background:#f5f3ff; border:1px solid #ddd6fe; '
-                                                f'color:#7c3aed; font-size:0.72rem; font-weight:600; padding:2px 8px; '
-                                                f'border-radius:999px;">{node_type}</span>'
-                                                f'<span style="color:#71717a; font-size:0.82rem; font-weight:600;">'
-                                                f'Page {page_number}</span>'
-                                                f'</div>'
-                                                f'<div style="color:#16a34a; font-size:0.82rem; font-weight:700;">'
-                                                f'Score: {score_text}</div>'
-                                                f'</div>'
-                                                f'</div>'
-                                            )
+                                    sources = result.get("sources", [])
 
-                                            st.markdown(source_card_html, unsafe_allow_html=True)
+                                    show_sources = st.toggle(
+                                        "Show sources",
+                                        value=False,
+                                        key=f"show_sources_{mode}",
+                                    )
+                                    if show_sources:
+                                        if sources:
+                                            st.markdown("**Sources**")
+                                            for source in sources:
+                                                node_type = source.get("node_type", "unknown")
+                                                page_number = source.get("page_number", "N/A")
+                                                score = source.get("score", None)
 
-                                            with st.expander("Show full context", expanded=False):
-                                                st.text(source.get("content", ""))
-                                    else:
-                                        st.info("No sources returned.")
+                                                if score is not None:
+                                                    score_text = f"{float(score):.2f}"
+                                                else:
+                                                    score_text = "N/A"
+
+                                                source_card_html = (
+                                                    f'<div style="border:1px solid #e4e4e7; border-radius:14px; '
+                                                    f'padding:0.7rem 0.9rem; margin:0.45rem 0 0.2rem 0; background:#ffffff;">'
+                                                    f'<div style="display:flex; justify-content:space-between; align-items:center; '
+                                                    f'gap:0.75rem; flex-wrap:wrap;">'
+                                                    f'<div style="display:flex; align-items:center; gap:0.55rem; flex-wrap:wrap;">'
+                                                    f'<span style="display:inline-block; background:#f5f3ff; border:1px solid #ddd6fe; '
+                                                    f'color:#7c3aed; font-size:0.72rem; font-weight:600; padding:2px 8px; '
+                                                    f'border-radius:999px;">{node_type}</span>'
+                                                    f'<span style="color:#71717a; font-size:0.82rem; font-weight:600;">'
+                                                    f'Page {page_number}</span>'
+                                                    f'</div>'
+                                                    f'<div style="color:#16a34a; font-size:0.82rem; font-weight:700;">'
+                                                    f'Score: {score_text}</div>'
+                                                    f'</div>'
+                                                    f'</div>'
+                                                )
+
+                                                st.markdown(source_card_html, unsafe_allow_html=True)
+
+                                                with st.expander("Show full context", expanded=False):
+                                                    st.text(source.get("content", ""))
+                                        else:
+                                            st.info("No sources returned.")
 
     with right_col:
         st.markdown('<div class="section-title">Retrieval configuration</div>', unsafe_allow_html=True)

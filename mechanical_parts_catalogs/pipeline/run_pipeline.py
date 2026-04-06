@@ -19,7 +19,7 @@ from pipeline.mapping import (
     log_mapping_diagnostics,
 )
 from pipeline.nodes import build_retrieval_nodes
-from pipeline.indexing import build_pgvector_store, index_nodes_with_store
+from pipeline.indexing import reset_pgvector_schema, build_pgvector_store, index_nodes_with_store
 from pipeline.graph import get_or_build_property_graph_index
 from retrieval.retriever import (
     build_basic_vector_retriever,
@@ -77,7 +77,7 @@ def setup_models():
 # Pipeline
 # -----------------------------------------------------------------------
 # -----------------------------------------------------------------------
-async def run_pipeline(debug: bool = False):
+async def run_pipeline(debug: bool = False, clean_index: bool = False):
     setup_models()
 
     # 1. Extract
@@ -108,6 +108,10 @@ async def run_pipeline(debug: bool = False):
             logger.debug(f"Sample row node metadata: {row_nodes[0].metadata}")
 
     # 4. Index
+    if clean_index:
+        reset_pgvector_schema("public", True)
+        logger.info("pgvector tables reset — starting clean index")
+
     logger.info("Indexing into pgvector...")
     basic_vector_store  = build_pgvector_store("basic")
     hybrid_vector_store = build_pgvector_store("hybrid")
@@ -181,6 +185,6 @@ def run_agent_query(query: str, pipeline: dict) -> str:
 # Entry point
 # -----------------------------------------------------------------------
 if __name__ == "__main__":
-    pipeline = asyncio.run(run_pipeline(debug=False))
+    pipeline = asyncio.run(run_pipeline(debug=False, clean_index=True))
     response = run_query("POM spur gear with module 2.0", pipeline)
     print(response)
