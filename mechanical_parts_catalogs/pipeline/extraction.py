@@ -1,9 +1,12 @@
 import hashlib
+import os
 import json
 from dataclasses import dataclass
 from llama_cloud import AsyncLlamaCloud
 from typing import List, Any, Dict, Optional
 from pipeline.schemas import PartSchema, TableRowSchema
+from config.settings import LLAMA_CLOUD_API_KEY
+from pathlib import Path
 
 # -----------------------------------------------------------------------
 # Setting up (Credentials, logger, etc.)
@@ -11,33 +14,34 @@ from pipeline.schemas import PartSchema, TableRowSchema
 import logging
 logger = logging.getLogger(__name__)
 
-from dotenv import load_dotenv
-import os
-load_dotenv()
-LLAMA_CLOUD_API_KEY = os.getenv("LLAMAINDEX_CLOUD_KEY")
-
-
 # -----------------------------------------------------------------------
-# look up the existing agent instead of creating a new one, and reuse it
+# Cache config
 # -----------------------------------------------------------------------
+CACHE_DIR = Path(".cache/extraction")
+CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
+@dataclass
+class ExtractionResult:
+    data: list
+    field_metadata: list  # parallel to data, contains page_number per item
+
+# ---------------------------------------------------------------------
+# Agent versioning
+# ---------------------------------------------------------------------
 def compute_agent_fingerprint(config: dict, data_schema: dict) -> str:
-    """Create a short hash from config + schema so any change produces a new agent."""
     payload = json.dumps({"config": config, "schema": data_schema}, sort_keys=True)
-    return hashlib.sha256(payload.encode()).hexdigest()[:12]  # 12 chars is plenty
+    return hashlib.sha256(payload.encode()).hexdigest()[:12]
 
 async def get_or_create_agent(client, name, config, data_schema):
     fingerprint = compute_agent_fingerprint(config, data_schema)
     versioned_name = f"{name}__{fingerprint}"
 
-    # check if this exact version already exists
     existing = await client.extraction.extraction_agents.list()
     for agent in existing:
         if agent.name == versioned_name:
             logger.info(f"Reusing agent: {versioned_name}")
             return agent
 
-    # config or schema changed — create a fresh agent
     logger.info(f"Creating new agent: {versioned_name}")
     return await client.extraction.extraction_agents.create(
         config=config,
@@ -46,25 +50,113 @@ async def get_or_create_agent(client, name, config, data_schema):
     )
 
 async def cleanup_old_agents(client, base_name, keep_name):
-    """Delete old versioned agents that are no longer current."""
     existing = await client.extraction.extraction_agents.list()
     for agent in existing:
         if agent.name.startswith(base_name) and agent.name != keep_name:
             logger.info(f"Deleting stale agent: {agent.name}")
             await client.extraction.extraction_agents.delete(agent.id)
 
-# -----------------------------------------------------------------------
-# Define extraction approach
-# -----------------------------------------------------------------------
+# ---------------------------------------------------------------------
+# Result caching
+# ---------------------------------------------------------------------
+def compute_file_hash(pdf_path: str) -> str:
+    hasher = hashlib.sha256()
+    with open(pdf_path, "rb") as f:
+        while chunk := f.read(1024 * 1024):
+            hasher.update(chunk)
+    return hasher.hexdigest()
 
-@dataclass
-class ExtractionResult:
-    data: list
-    field_metadata: list  # parallel to data, contains page_number per item
+def compute_extraction_cache_key(
+    pdf_path: str,
+    config: dict,
+    data_schema: dict,
+    sys_prompt: str,
+    layer_name: str,
+) -> str:
+    payload = {
+        "layer_name": layer_name,
+        "pdf_hash": compute_file_hash(pdf_path),
+        "config": config,
+        "schema": data_schema,
+        "system_prompt": sys_prompt,
+    }
+    raw = json.dumps(payload, sort_keys=True)
+    return hashlib.sha256(raw.encode()).hexdigest()
 
-# LAYER 1 — PER_PAGE (Part-level metadata)
-async def extract_layer1_fields(pdf_path: str, sys_prompt: str, layer_schema) -> ExtractionResult:
+def _to_jsonable_item(item: Any) -> Any:
+    if hasattr(item, "model_dump"):
+        return item.model_dump()
+    if hasattr(item, "dict"):
+        return item.dict()
+    if isinstance(item, dict):
+        return item
+    return item
+
+def save_extraction_cache(cache_key: str, result: ExtractionResult) -> None:
+    cache_file = CACHE_DIR / f"{cache_key}.json"
+    payload = {
+        "cache_key": cache_key,
+        "data": [_to_jsonable_item(x) for x in result.data],
+        "field_metadata": result.field_metadata,
+    }
+    with open(cache_file, "w", encoding="utf-8") as f:
+        json.dump(payload, f, ensure_ascii=False, indent=2)
+
+def load_extraction_cache(cache_key: str) -> Optional[ExtractionResult]:
+    cache_file = CACHE_DIR / f"{cache_key}.json"
+    if not cache_file.exists():
+        return None
+
+    with open(cache_file, "r", encoding="utf-8") as f:
+        payload = json.load(f)
+
+    if payload.get("cache_key") != cache_key:
+        return None
+
+    return ExtractionResult(
+        data=payload.get("data", []),
+        field_metadata=payload.get("field_metadata", []),
+    )
+
+# ---------------------------------------------------------------------
+# Shared extraction runner with cache
+# ---------------------------------------------------------------------
+
+async def extract_with_cache(
+    *,
+    pdf_path: str,
+    sys_prompt: str,
+    layer_schema,
+    agent_name: str,
+    extraction_target: str,
+) -> ExtractionResult:
     client = AsyncLlamaCloud(api_key=LLAMA_CLOUD_API_KEY)
+
+    config = {
+        "chunk_mode": "PAGE",
+        "cite_sources": True,
+        "confidence_scores": True,
+        "extraction_target": extraction_target,
+        "extraction_mode": "PREMIUM",
+        "parse_model": "anthropic-sonnet-4.5",
+        "system_prompt": sys_prompt,
+    }
+    schema = layer_schema.model_json_schema()
+
+    cache_key = compute_extraction_cache_key(
+        pdf_path=pdf_path,
+        config=config,
+        data_schema=schema,
+        sys_prompt=sys_prompt,
+        layer_name=agent_name,
+    )
+
+    cached = load_extraction_cache(cache_key)
+    if cached is not None:
+        logger.info(f"Cache hit for {agent_name}: {cache_key}")
+        return cached
+
+    logger.info(f"Cache miss for {agent_name}: {cache_key}")
 
     file_obj = await client.files.create(
         file=pdf_path,
@@ -74,80 +166,46 @@ async def extract_layer1_fields(pdf_path: str, sys_prompt: str, layer_schema) ->
 
     agent = await get_or_create_agent(
         client=client,
-        name="Layer 1 Agent",
-        config={
-            "chunk_mode": "PAGE",
-            "cite_sources": True,
-            "confidence_scores": True,
-            "extraction_target": "PER_PAGE",
-            "extraction_mode": "PREMIUM",
-            "parse_model": "anthropic-sonnet-4.5",
-            "system_prompt": sys_prompt,
-        },
-        data_schema=layer_schema.model_json_schema(),
+        name=agent_name,
+        config=config,
+        data_schema=schema,
     )
-    await cleanup_old_agents(client, "Layer 1 Agent", keep_name=agent.name)
+    await cleanup_old_agents(client, agent_name, keep_name=agent.name)
 
-    # error handling around LlamaCloud API calls
     try:
-        result_layer1 = await client.extraction.jobs.extract(
+        result = await client.extraction.jobs.extract(
             extraction_agent_id=agent.id,
             file_id=file_id,
         )
     except Exception as e:
-        logger.error(f"Layer 1 extraction failed: {e}")
+        logger.error(agent_name + f"Layer 1 extraction failed: {e}")
         raise
 
-    # part_data       -> ExtractionResult
-    logger.info("Starting Layer 1 extraction (PER_PAGE)")
-    logger.debug(f"Layer 1 extraction result: {result_layer1.data}")
+    extraction_result = ExtractionResult(
+        data=[_to_jsonable_item(x) for x in result.data],
+        field_metadata=result.extraction_metadata.get("field_metadata", []),
+    )
 
-    return ExtractionResult(
-        data=result_layer1.data,
-        field_metadata=result_layer1.extraction_metadata.get("field_metadata", []),
+    save_extraction_cache(cache_key, extraction_result)
+    return extraction_result
+
+
+# LAYER 1 — PER_PAGE (Part-level metadata)
+async def extract_layer1_fields(pdf_path: str, sys_prompt: str, layer_schema) -> ExtractionResult:
+    return await extract_with_cache(
+        pdf_path=pdf_path,
+        sys_prompt=sys_prompt,
+        layer_schema=layer_schema,
+        agent_name="Layer 1 Agent",
+        extraction_target="PER_PAGE",
     )
 
 # LAYER 2 — PER_TABLE_ROW (Dimension rows)
 async def extract_layer2_fields(pdf_path: str, sys_prompt: str, layer_schema) -> ExtractionResult:
-    client = AsyncLlamaCloud(api_key=LLAMA_CLOUD_API_KEY)
-
-    file_obj = await client.files.create(
-        file=pdf_path,
-        purpose="extract",
-    )
-    file_id = file_obj.id
-
-    agent = await get_or_create_agent(
-        client=client,
-        name="Layer 2 Agent",
-        config={
-            "chunk_mode": "PAGE",
-            "cite_sources": True,
-            "confidence_scores": True,
-            "extraction_target": "PER_TABLE_ROW",
-            "extraction_mode": "PREMIUM",
-            "parse_model": "anthropic-sonnet-4.5",
-            "system_prompt": sys_prompt,
-        },
-        data_schema=layer_schema.model_json_schema(),
-    )
-    await cleanup_old_agents(client, "Layer 2 Agent", keep_name=agent.name)
-
-    # error handling around LlamaCloud API calls
-    try:
-        result_layer2 = await client.extraction.jobs.extract(
-            extraction_agent_id=agent.id,
-            file_id=file_id,
-        )
-    except Exception as e:
-        logger.error(f"Layer 2 extraction failed: {e}")
-        raise
-
-    # table_row_data  -> ExtractionResult
-    logger.info("Starting Layer 2 extraction (PER_TABLE_ROW)")
-    logger.debug(f"Layer 2 extraction result: {result_layer2.data}")
-
-    return ExtractionResult(
-        data=result_layer2.data,
-        field_metadata=result_layer2.extraction_metadata.get("field_metadata", []),
+    return await extract_with_cache(
+        pdf_path=pdf_path,
+        sys_prompt=sys_prompt,
+        layer_schema=layer_schema,
+        agent_name="Layer 2 Agent",
+        extraction_target="PER_TABLE_ROW",
     )
