@@ -19,6 +19,8 @@ from retrieval.retriever import (
     build_basic_hybrid_retriever,
     build_kg_retriever,
 )
+import time
+import streamlit as st
 
 logger = logging.getLogger(__name__)
 
@@ -36,15 +38,34 @@ def build_agent_retriever(
     if property_graph_index is not None:
         kg_ret = build_kg_retriever(property_graph_index)
 
+    # Agent traces
+    trace_state = {"steps": []}
+    def _record_agent_step(tool_name: str, query: str, started: float, error: str | None = None):
+        elapsed = time.perf_counter() - started
+        trace_state["steps"].append(
+            {
+                "tool": tool_name,
+                "query": query,
+                "elapsed_sec": elapsed,
+                "error": error,
+            }
+        )
+
     # ── tool definitions ──────────────────────────────────────────
     def vector_search(query: str) -> str:
         """
         Use for broad semantic questions about gear families, materials,
         or general catalog content. Best for open-ended natural language queries.
         """
-        logger.info(f"[Agent] vector_search called: '{query}'")
-        nodes = vector_ret.retrieve(query)
-        return "\n\n".join(n.node.text for n in nodes)
+        started = time.perf_counter()
+        try:
+            logger.info(f"[Agent] vector_search called: '{query}'")
+            nodes = vector_ret.retrieve(query)
+            _record_agent_step("vector_search", query, started)
+            return "\n\n".join(n.node.text for n in nodes)
+        except Exception as e:
+            _record_agent_step("vector_search", query, started, error=str(e))
+            raise
 
     def hybrid_search(query: str) -> str:
         """
@@ -52,9 +73,15 @@ def build_agent_retriever(
         article numbers alongside natural language. Combines semantic
         and keyword search.
         """
-        logger.info(f"[Agent] hybrid_search called: '{query}'")
-        nodes = hybrid_ret.retrieve(query)
-        return "\n\n".join(n.node.text for n in nodes)
+        started = time.perf_counter()
+        try:
+            logger.info(f"[Agent] hybrid_search called: '{query}'")
+            nodes = hybrid_ret.retrieve(query)
+            _record_agent_step("hybrid_search", query, started)
+            return "\n\n".join(n.node.text for n in nodes)
+        except Exception as e:
+            _record_agent_step("hybrid_search", query, started, error=str(e))
+            raise
 
     def filtered_search(query: str) -> str:
         """
@@ -62,16 +89,22 @@ def build_agent_retriever(
         weight < 50g, teeth count >= 20) or exact filters (module, material,
         family). Extracts intent and applies structured metadata filters.
         """
-        logger.info(f"[Agent] filtered_search called: '{query}'")
-        intent = extract_query_intent(query, Settings.llm)
-        retriever = build_filtered_retriever(
-            intent=intent,
-            basic_index=basic_index,
-            hybrid_index=hybrid_index,
-            use_hybrid=True,
-        )
-        nodes = retriever.retrieve(query)
-        return "\n\n".join(n.node.text for n in nodes)
+        started = time.perf_counter()
+        try:
+            logger.info(f"[Agent] filtered_search called: '{query}'")
+            intent = extract_query_intent(query, Settings.llm)
+            retriever = build_filtered_retriever(
+                intent=intent,
+                basic_index=basic_index,
+                hybrid_index=hybrid_index,
+                use_hybrid=True,
+            )
+            nodes = retriever.retrieve(query)
+            _record_agent_step("filtered_search", query, started)
+            return "\n\n".join(n.node.text for n in nodes)
+        except Exception as e:
+            _record_agent_step("filtered_search", query, started, error=str(e))
+            raise
 
     def kg_search(query: str) -> str:
         """
@@ -79,12 +112,20 @@ def build_agent_retriever(
         connections between gears, materials, modules, and specifications.
         Best for queries like 'which steel gears have module 1.0'.
         """
-        if kg_ret is None:
-            return "KG search is unavailable because no property graph index was built."
+        started = time.perf_counter()
+        try:
+            if kg_ret is None:
+                msg = "KG search is unavailable because no property graph index was built."
+                _record_agent_step("kg_search", query, started, error=msg)
+                return msg
 
-        logger.info(f"[Agent] kg_search called: '{query}'")
-        nodes = kg_ret.retrieve(query)
-        return "\n\n".join(n.node.text for n in nodes)
+            logger.info(f"[Agent] kg_search called: '{query}'")
+            nodes = kg_ret.retrieve(query)
+            _record_agent_step("kg_search", query, started)
+            return "\n\n".join(n.node.text for n in nodes)
+        except Exception as e:
+            _record_agent_step("kg_search", query, started, error=str(e))
+            raise
 
     # ── wrap as LlamaIndex tools ──────────────────────────────────
     tools = [
@@ -146,5 +187,7 @@ def build_agent_retriever(
         streaming=True,
     )
 
+    agent._trace_state = trace_state
+    
     logger.info("Agent retriever built with 4 tools")
     return agent

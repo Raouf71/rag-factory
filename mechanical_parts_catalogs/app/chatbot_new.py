@@ -449,6 +449,7 @@ def init_session_state():
         "benchmark_query": "",
         "benchmark_results": {},
         "agent_retriever": None,
+        "agent_trace": [],
     }
     for k, v in defaults.items():
         if k not in st.session_state:
@@ -1174,7 +1175,12 @@ def run_query_with_memory(user_query: str) -> tuple[str, str, list[dict]]:
         agent = st.session_state.agent_retriever
 
         if agent is None:
-            return "⚠️ Agent Mode is not ready yet. Run Step 6 first.", "", []
+            return "⚠️ Agent Mode is not ready yet. Run Step 6 first.", "", [], []
+
+        if not hasattr(agent, "_trace_state"):
+            agent._trace_state = {"steps": []}
+
+        agent._trace_state["steps"] = []
 
         async def _run_agent_query():
             response = await agent.run(user_query)
@@ -1182,11 +1188,13 @@ def run_query_with_memory(user_query: str) -> tuple[str, str, list[dict]]:
 
         try:
             response = asyncio.run(_run_agent_query())
+            agent_trace = agent._trace_state.get("steps", []).copy()
         except Exception as e:
             logging.error(f"Agent Mode failed: {e}")
-            return f"⚠️ Agent retrieval error: {e}", "", []
+            agent_trace = agent._trace_state.get("steps", []).copy()
+            return f"⚠️ Agent retrieval error: {e}", "", [], st.session_state.get("agent_trace", [])
 
-        return str(response), "", []
+        return str(response), "", [], agent_trace
     
     if mode == "Vector Only":
         # retriever = build_basic_vector_retriever(basic_index=st.session_state.basic_index)
@@ -1248,7 +1256,7 @@ def run_query_with_memory(user_query: str) -> tuple[str, str, list[dict]]:
     sources_html = format_sources(source_nodes)
     sources_data = build_sources_data(source_nodes)
     
-    return str(response), sources_html, sources_data
+    return str(response), sources_html, sources_data, []
 
 # -----------------------------------------------------------------------
 # Developer Console Helper
@@ -1368,6 +1376,7 @@ if st.session_state.active_tab == "Chat":
                         content = msg["content"]
                         sources_html = msg.get("sources_html", "")
                         sources_data = msg.get("sources_data", [])
+                        agent_trace = msg.get("agent_trace", [])
 
                         if role == "user":
                             st.markdown(
@@ -1393,6 +1402,30 @@ if st.session_state.active_tab == "Chat":
 
                             st.markdown(assistant_html, unsafe_allow_html=True)
 
+                            # Agent trace card
+                            if agent_trace:
+                                used_tools = [step["tool"] for step in agent_trace]
+                                sequence = " → ".join(used_tools)
+                                multiple_tools = len(set(used_tools)) > 1 or len(used_tools) > 1
+                                failures = [step for step in agent_trace if step.get("error")]
+
+                                with st.expander("Agent trace", expanded=False):
+                                    st.markdown(f"**Multiple tools used:** {'Yes' if multiple_tools else 'No'}")
+                                    st.markdown(f"**Tool sequence:** {sequence}")
+
+                                    if failures:
+                                        st.markdown("**Failures:**")
+                                        for step in failures:
+                                            st.markdown(f"- `{step['tool']}`: {step['error']}")
+                                    else:
+                                        st.markdown("**Failures:** None")
+
+                                    st.markdown("**Tool calls:**")
+                                    for i, step in enumerate(agent_trace, start=1):
+                                        elapsed = step.get("elapsed_sec")
+                                        elapsed_text = f"{elapsed:.2f}s" if isinstance(elapsed, (int, float)) else "N/A"
+                                        st.markdown(f"{i}. **{step['tool']}** — elapsed: `{elapsed_text}`")
+                                        
                             if sources_data:
                                 st.markdown(
                                     '<div class="sources-label" style="margin:0.5rem 0 0.35rem 0;">Sources</div>',
@@ -1435,10 +1468,7 @@ if st.session_state.active_tab == "Chat":
                 if st.session_state.generate_response_now and st.session_state.pending_user_prompt:
                     with st.spinner("Thinking..."):
                         try:
-                            # response_text, sources_html = run_query_with_memory(
-                            #     st.session_state.pending_user_prompt
-                            # )
-                            response_text, sources_html, sources_data = run_query_with_memory(
+                            response_text, sources_html, sources_data, agent_trace = run_query_with_memory(
                                 st.session_state.pending_user_prompt
                             )
                         except Exception as e:
@@ -1451,10 +1481,11 @@ if st.session_state.active_tab == "Chat":
                         {
                             "role": "assistant",
                             "content": response_text,
-                            # "sources_html": sources_html,
                             "sources_data": sources_data,
+                            "agent_trace": agent_trace,
                         }
                     )
+                    
                     st.session_state.pending_user_prompt = None
                     st.session_state.generate_response_now = False
                     st.rerun()
