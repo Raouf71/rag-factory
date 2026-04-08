@@ -6,14 +6,17 @@
 - **Mechanical Parts Catalogs** — structured, technical, terminology-heavy documents
 <!-- - **Medical Bills** — semi-structured, entity-rich, compliance-sensitive documents -->
 
-## 🚧 In Progress:
+## ⚙️ Current features:
 
-An annotated Jupyter notebook is available for exploring and testing the full pipeline step by step: &nbsp;[![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/Raouf71/rag-factory/blob/master/mechanical_parts_catalogs/notebooks/llamaindex-v2/kg-rag-postgres-v2.ipynb)
+* An annotated Jupyter notebook for exploring and testing the full pipeline step by step: &nbsp;[![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/Raouf71/rag-factory/blob/master/mechanical_parts_catalogs/notebooks/llamaindex-v2/kg-rag-postgres-v2.ipynb)
 
-- Visualize the pipeline [here](https://github.com/Raouf71/rag-factory/tree/master/mechanical_parts_catalogs)
-- RAG-Chatbot with UI (coming soon)
-- WIKI page hosting the project documentation
+* Learn more about the different steps of the pipeline [here](https://github.com/Raouf71/rag-factory/tree/master/mechanical_parts_catalogs)
+* A production-ready [Evaluation Roadmap](https://github.com/Raouf71/rag-factory/tree/master/mechanical_parts_catalogs/evaluation) for your RAG-Pipeline 
+* RAG-Chatbot with UI (coming soon)
+* WIKI page hosting the entire project documentation (coming soon)
 
+Extras:
+* Learn how to turn any Document into a RAG-Pipeline [right here](https://github.com/Raouf71/the-missing-engineering-semester/blob/master/the-craft/rag/how-to-turn-doc-into-rag-pipeline.md)
 ---
 
 ## Pipeline
@@ -72,6 +75,7 @@ rag-factory/
 │   │   ├── intent.py             # QueryIntent, extract_query_intent
 │   │   ├── filters.py            # RANGE_FIELD_MAP, build_filtered_retriever
 │   │   └── retriever.py          # build_custom_retriever, reranker toggle
+│   │   └── agent.py
 │   ├── app/
 │       ├── chatbot.py           # Chatbot UI 
 │   ├── data/                    # Raw documents
